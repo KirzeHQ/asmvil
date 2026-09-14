@@ -13,12 +13,12 @@ impl Context {
         self.0.as_mut_ptr()
     }
 }
-pub(crate) fn ctx(_n: usize) -> Box<Context> {
+pub(crate) fn ctx() -> Box<Context> {
     Box::new(Context([0; 512]))
 }
 
 pub(crate) fn digest256(p: &[u8], chunks: &[usize]) -> Vec<u8> {
-    let mut c = ctx(112);
+    let mut c = ctx();
     let mut d = [0; 32];
     unsafe {
         sha256_init(c.as_mut_ptr());
@@ -33,7 +33,7 @@ pub(crate) fn digest256(p: &[u8], chunks: &[usize]) -> Vec<u8> {
 }
 
 pub(crate) fn digest512(p: &[u8], chunks: &[usize], short: bool) -> Vec<u8> {
-    let mut c = ctx(216);
+    let mut c = ctx();
     let mut d = [0; 64];
     unsafe {
         if short {

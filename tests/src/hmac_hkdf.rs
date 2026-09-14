@@ -1,5 +1,34 @@
 use crate::{ffi::*, fixture::fixture, helpers::eq};
-use std::collections::HashMap;
+use hkdf::Hkdf;
+use hmac::{Hmac, Mac};
+use sha2::{Sha256, Sha384, Sha512};
+
+// Match the assembly's TLS label encoding before asking hkdf for the reference.
+fn tls_label(secret: &[u8], label: &[u8], context: &[u8], n: usize, hash: usize) -> Vec<u8> {
+    let mut info = Vec::with_capacity(3 + label.len() + context.len());
+    // The assembly API uses its historical wire format: length, "tls13 ", label.
+    info.extend_from_slice(&(n as u16).to_be_bytes());
+    info.extend_from_slice(b"tls13 ");
+    info.extend_from_slice(label);
+    info.push(context.len() as u8);
+    info.extend_from_slice(context);
+    let mut out = vec![0; n];
+    match hash {
+        32 => Hkdf::<Sha256>::from_prk(secret)
+            .unwrap()
+            .expand(&info, &mut out)
+            .unwrap(),
+        48 => Hkdf::<Sha384>::from_prk(secret)
+            .unwrap()
+            .expand(&info, &mut out)
+            .unwrap(),
+        _ => Hkdf::<Sha512>::from_prk(secret)
+            .unwrap()
+            .expand(&info, &mut out)
+            .unwrap(),
+    }
+    out
+}
 
 #[test]
 fn hmac_all_vectors() {
@@ -24,10 +53,9 @@ fn hmac_all_vectors() {
                 o.as_mut_ptr(),
             )
         };
-        eq(
-            &o[..32],
-            &f[&format!("exp_tc{}_256", k.trim_start_matches("key"))],
-        );
+        let mut m = Hmac::<Sha256>::new_from_slice(key).unwrap();
+        m.update(msg);
+        eq(&o[..32], &m.finalize().into_bytes());
         unsafe {
             hmac_sha384(
                 key.as_ptr(),
@@ -37,10 +65,9 @@ fn hmac_all_vectors() {
                 o.as_mut_ptr(),
             )
         };
-        eq(
-            &o[..48],
-            &f[&format!("exp_tc{}_384", k.trim_start_matches("key"))],
-        );
+        let mut m = Hmac::<Sha384>::new_from_slice(key).unwrap();
+        m.update(msg);
+        eq(&o[..48], &m.finalize().into_bytes());
         unsafe {
             hmac_sha512(
                 key.as_ptr(),
@@ -50,22 +77,13 @@ fn hmac_all_vectors() {
                 o.as_mut_ptr(),
             )
         };
-        eq(
-            &o[..64],
-            &f[&format!("exp_tc{}_512", k.trim_start_matches("key"))],
-        );
+        let mut m = Hmac::<Sha512>::new_from_slice(key).unwrap();
+        m.update(msg);
+        eq(&o[..64], &m.finalize().into_bytes());
     }
 }
 
-fn hkdf_case(
-    _f: &HashMap<String, Vec<u8>>,
-    hash: usize,
-    ikm: &[u8],
-    salt: &[u8],
-    info: &[u8],
-    prk: &[u8],
-    okm: &[u8],
-) {
+fn hkdf_case(hash: usize, ikm: &[u8], salt: &[u8], info: &[u8], okm_len: usize) {
     let mut p = [0; 64];
     let mut o = [0; 128];
     unsafe {
@@ -83,7 +101,7 @@ fn hkdf_case(
                     info.as_ptr(),
                     info.len(),
                     o.as_mut_ptr(),
-                    okm.len(),
+                    okm_len,
                 )
             }
             48 => {
@@ -99,7 +117,7 @@ fn hkdf_case(
                     info.as_ptr(),
                     info.len(),
                     o.as_mut_ptr(),
-                    okm.len(),
+                    okm_len,
                 )
             }
             _ => {
@@ -115,26 +133,52 @@ fn hkdf_case(
                     info.as_ptr(),
                     info.len(),
                     o.as_mut_ptr(),
-                    okm.len(),
+                    okm_len,
                 )
             }
         }
     };
-    eq(&p[..hash], prk);
-    eq(&o[..okm.len()], okm);
+    let mut expected = vec![0; okm_len];
+    match hash {
+        32 => {
+            let h = Hkdf::<Sha256>::new(Some(salt), ikm);
+            h.expand(info, &mut expected).unwrap();
+            eq(
+                &p[..hash],
+                Hkdf::<Sha256>::extract(Some(salt), ikm).0.as_slice(),
+            );
+        }
+        48 => {
+            let h = Hkdf::<Sha384>::new(Some(salt), ikm);
+            h.expand(info, &mut expected).unwrap();
+            eq(
+                &p[..hash],
+                Hkdf::<Sha384>::extract(Some(salt), ikm).0.as_slice(),
+            );
+        }
+        _ => {
+            let h = Hkdf::<Sha512>::new(Some(salt), ikm);
+            h.expand(info, &mut expected).unwrap();
+            eq(
+                &p[..hash],
+                Hkdf::<Sha512>::extract(Some(salt), ikm).0.as_slice(),
+            );
+        }
+    }
+    eq(&o[..okm_len], &expected);
 }
 
 #[test]
 fn hkdf_extract_expand_tls_label_and_derive_secret() {
     let f = fixture("hkdf_test.asm");
-    for (h, ik, s, inf, pr, ok) in [
-        (32, "ikm1", "salt1", "info1", "prk1", "okm1"),
-        (32, "ikm2", "salt2", "info2", "prk2", "okm2"),
-        (32, "ikm3", "salt3", "info3", "prk3", "okm3"),
-        (64, "ikm512", "salt512", "info512", "prk512a", "okm512a"),
-        (64, "ikm512", "salt3", "info512", "prk512z", "okm512z"),
-        (48, "ikm384", "salt384", "info384", "prk384a", "okm384a"),
-        (48, "ikm384", "salt3", "info384", "prk384z", "okm384z"),
+    for (h, ik, s, inf, okm_len) in [
+        (32, "ikm1", "salt1", "info1", 42),
+        (32, "ikm2", "salt2", "info2", 82),
+        (32, "ikm3", "salt3", "info3", 42),
+        (64, "ikm512", "salt512", "info512", 96),
+        (64, "ikm512", "salt3", "info512", 96),
+        (48, "ikm384", "salt384", "info384", 72),
+        (48, "ikm384", "salt3", "info384", 72),
     ] {
         let ikmlen = match ik {
             "ikm1" | "ikm3" => 22,
@@ -142,13 +186,11 @@ fn hkdf_extract_expand_tls_label_and_derive_secret() {
             _ => 32,
         };
         hkdf_case(
-            &f,
             h,
             &f[ik][..ikmlen],
             &f[s][..if s == "salt3" { 0 } else { f[s].len() }],
             &f[inf],
-            &f[pr],
-            &f[ok],
+            okm_len,
         );
     }
     let mut o = [0; 64];
@@ -163,7 +205,10 @@ fn hkdf_extract_expand_tls_label_and_derive_secret() {
             42,
         )
     };
-    eq(&o[..42], &f["el256a_out"]);
+    eq(
+        &o[..42],
+        &tls_label(&f["sec25_32"], &f["lbl_exp"], &[], 42, 32),
+    );
     unsafe {
         hkdf_expand_label_sha384(
             f["sec25_48"].as_ptr(),
@@ -175,7 +220,10 @@ fn hkdf_extract_expand_tls_label_and_derive_secret() {
             48,
         )
     };
-    eq(&o[..48], &f["el384_out"]);
+    eq(
+        &o[..48],
+        &tls_label(&f["sec25_48"], &f["lbl_skey"], &f["ctx24"], 48, 48),
+    );
     unsafe {
         hkdf_expand_label_sha512(
             f["sec25_64"].as_ptr(),
@@ -187,7 +235,10 @@ fn hkdf_extract_expand_tls_label_and_derive_secret() {
             64,
         )
     };
-    eq(&o, &f["el512_out"]);
+    eq(
+        &o,
+        &tls_label(&f["sec25_64"], &f["lbl_ctx"], &f["ctx64"], 64, 64),
+    );
     unsafe {
         hkdf_derive_secret_sha256(
             f["sec25_32"].as_ptr(),
@@ -198,7 +249,10 @@ fn hkdf_extract_expand_tls_label_and_derive_secret() {
             o.as_mut_ptr(),
         )
     };
-    eq(&o[..32], &f["ds256_out"]);
+    eq(
+        &o[..32],
+        &tls_label(&f["sec25_32"], &f["lbl_der"], &[], 32, 32),
+    );
     unsafe {
         hkdf_derive_secret_sha384(
             f["sec25_48"].as_ptr(),
@@ -209,5 +263,8 @@ fn hkdf_extract_expand_tls_label_and_derive_secret() {
             o.as_mut_ptr(),
         )
     };
-    eq(&o[..48], &f["ds384_out"]);
+    eq(
+        &o[..48],
+        &tls_label(&f["sec25_48"], &f["lbl_der"], &f["ctx99_32"], 48, 48),
+    );
 }

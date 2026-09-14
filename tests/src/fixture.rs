@@ -38,6 +38,11 @@ pub(crate) fn fixture(file: &str) -> HashMap<String, Vec<u8>> {
                     v.extend_from_slice(&num64(x).to_le_bytes());
                 }
             }
+            ".long" => {
+                for x in args.split(',') {
+                    v.extend_from_slice(&(num64(x) as u32).to_le_bytes());
+                }
+            }
             ".zero" | ".space" => v.resize(v.len() + num64(args) as usize, 0),
             ".fill" => {
                 let mut x = args.split(',');

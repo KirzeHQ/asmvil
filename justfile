@@ -88,7 +88,7 @@ test:
     for src in {{src_dir}}/crypto/$arch/*.asm; do
         [ -e "$src" ] || continue
         obj="/tmp/asmvil_crypto/$(basename "$src" .asm).o"
-        as $asflags -o "$obj" "$src" || exit 1
+        as $asflags -I "include/$arch" -I src -o "$obj" "$src" || exit 1
         extra_objs="$extra_objs $obj"
     done
 

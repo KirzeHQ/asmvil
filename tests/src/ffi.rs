@@ -1,6 +1,9 @@
 #![allow(improper_ctypes)]
 
 unsafe extern "C" {
+    pub(crate) fn asmvil_test_registry_version() -> u64;
+    pub(crate) fn asmvil_test_registry_begin() -> *const u8;
+    pub(crate) fn asmvil_test_registry_end() -> *const u8;
     pub(crate) fn aes128_expand(k: *const u8, s: *mut u8);
     pub(crate) fn aes256_expand(k: *const u8, s: *mut u8);
     pub(crate) fn aes128_encrypt(s: *const u8, i: *const u8, o: *mut u8);
@@ -88,7 +91,6 @@ unsafe extern "C" {
     pub(crate) fn gcm_init(c: *mut u8, k: *const u8, nr: u32, iv: *const u8) -> u8;
     pub(crate) fn gcm_update_aad(c: *mut u8, p: *const u8, n: usize) -> u8;
     pub(crate) fn gcm_seal(c: *mut u8, i: *const u8, o: *mut u8, n: usize) -> u8;
-    pub(crate) fn gcm_open(c: *mut u8, i: *const u8, o: *mut u8, n: usize) -> u8;
     pub(crate) fn gcm_final_tag(c: *mut u8, t: *mut u8) -> u8;
     pub(crate) fn gcm_verify(c: *mut u8, t: *const u8) -> u64;
     pub(crate) fn aead_init(c: *mut u8, k: *const u8, n: *const u8) -> u8;

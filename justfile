@@ -58,50 +58,7 @@ clean:
     echo "Cleaned build directory"
 
 test:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    case "$(uname -m)" in
-        x86_64|amd64)
-            arch=x86_64
-            asflags="--64"
-            ldflags="-m elf_x86_64"
-            ;;
-        aarch64|arm64)
-            arch=aarch64
-            asflags="-march=armv8-a"
-            ldflags="-m aarch64linux"
-            ;;
-        *)
-            echo "Unsupported architecture: $(uname -m)" >&2
-            exit 1
-            ;;
-    esac
-    testdir="tests/$arch"
-    if [ ! -d "$testdir" ] || [ -z "$(ls -A "$testdir" 2>/dev/null)" ]; then
-        echo "No tests found in $testdir/"
-        exit 0
-    fi
-
-    # Build the crypto library for the native arch.
-    mkdir -p /tmp/asmvil_crypto
-    extra_objs=""
-    for src in {{src_dir}}/crypto/$arch/*.asm; do
-        [ -e "$src" ] || continue
-        obj="/tmp/asmvil_crypto/$(basename "$src" .asm).o"
-        as $asflags -I "include/$arch" -I src -o "$obj" "$src" || exit 1
-        extra_objs="$extra_objs $obj"
-    done
-
-    for test in $(find "$testdir" -name '*.asm' | sort); do
-        echo "Testing: $test"
-        as $asflags -I "include/$arch" -o /tmp/test.o "$test" || exit 1
-        ld $ldflags -z noexecstack -o /tmp/test /tmp/test.o $extra_objs || exit 1
-        /tmp/test
-        echo "PASS: $test"
-        rm -f /tmp/test /tmp/test.o
-    done
-    rm -rf /tmp/asmvil_crypto
-    echo "All tests passed"
+    cargo test --manifest-path tests/Cargo.toml
 
 fmt:
     #!/usr/bin/env bash

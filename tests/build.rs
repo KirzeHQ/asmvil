@@ -12,6 +12,7 @@ fn main() {
         .to_path_buf();
     let out = PathBuf::from(env::var_os("OUT_DIR").unwrap());
     let arch = env::var("CARGO_CFG_TARGET_ARCH").expect("target architecture");
+    println!("cargo:rustc-env=ASMVIL_TEST_ARCH={arch}");
     let as_args: &[&str] = match arch.as_str() {
         "x86_64" => &["--64"],
         "aarch64" => &["-march=armv8-a"],
@@ -19,6 +20,10 @@ fn main() {
     };
     let crypto = root.join("src/crypto").join(&arch);
     let testing_dir = root.join("src/testing").join(&arch);
+    println!("cargo:rustc-check-cfg=cfg(asmvil_crypto_missing)");
+    if !crypto.is_dir() {
+        println!("cargo:rustc-cfg=asmvil_crypto_missing");
+    }
     let mut objects = Vec::new();
     if crypto.is_dir() {
         for entry in fs::read_dir(&crypto).unwrap() {

@@ -1,23 +1,26 @@
-#[cfg(test)]
+#[cfg(all(test, not(asmvil_crypto_missing)))]
 mod ffi;
-#[cfg(test)]
+#[cfg(all(test, not(asmvil_crypto_missing)))]
 mod fixture;
-#[cfg(test)]
+#[cfg(all(test, not(asmvil_crypto_missing)))]
 mod helpers;
 
-#[cfg(test)]
+#[cfg(all(test, not(asmvil_crypto_missing)))]
 mod aes;
-#[cfg(test)]
+#[cfg(all(test, not(asmvil_crypto_missing)))]
 mod bigint;
-#[cfg(test)]
+#[cfg(all(test, not(asmvil_crypto_missing)))]
 mod chacha_poly_aead;
-#[cfg(test)]
+#[cfg(all(test, not(asmvil_crypto_missing)))]
 mod gcm;
-#[cfg(test)]
+#[cfg(all(test, not(asmvil_crypto_missing)))]
 mod hashes;
-#[cfg(test)]
+#[cfg(all(test, not(asmvil_crypto_missing)))]
 mod hmac_hkdf;
-#[cfg(test)]
+#[cfg(all(test, not(asmvil_crypto_missing)))]
 mod registry;
-#[cfg(test)]
+#[cfg(all(test, not(asmvil_crypto_missing)))]
 mod x25519;
+
+#[cfg(all(test, asmvil_crypto_missing))]
+mod missing;

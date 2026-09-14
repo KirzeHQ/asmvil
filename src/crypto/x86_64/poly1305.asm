@@ -1,4 +1,5 @@
 .intel_syntax noprefix
+.include "common.inc"
 
 # Poly1305 RFC 8439 for x86-64; see ../poly1305.inc for the API.
 

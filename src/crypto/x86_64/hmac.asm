@@ -1,4 +1,5 @@
 .intel_syntax noprefix
+.include "common.inc"
 
 # HMAC-SHA256 / HMAC-SHA384 / HMAC-SHA512 (RFC 2104) for x86-64.
 # See ../hmac.inc for the shared API notes.

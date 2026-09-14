@@ -1,4 +1,5 @@
 .intel_syntax noprefix
+.include "common.inc"
 
 # SHA-384/SHA-512 for x86-64
 # See ../sha512.inc for the shared API and context layout.

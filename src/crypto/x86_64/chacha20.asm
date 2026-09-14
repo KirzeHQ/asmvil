@@ -1,4 +1,5 @@
 .intel_syntax noprefix
+.include "common.inc"
 
 # ChaCha20 RFC 8439 for x86-64; see ../chacha20.inc for the API.
 

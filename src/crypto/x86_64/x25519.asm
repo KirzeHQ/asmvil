@@ -1,4 +1,5 @@
 .intel_syntax noprefix
+.include "common.inc"
 
 .section .text
 

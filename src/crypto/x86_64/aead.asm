@@ -1,4 +1,5 @@
 .intel_syntax noprefix
+.include "common.inc"
 
 # ChaCha20-Poly1305 AEAD composition, RFC 8439 section 2.8.
 

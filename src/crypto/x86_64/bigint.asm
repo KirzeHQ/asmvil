@@ -1,4 +1,5 @@
 .intel_syntax noprefix
+.include "common.inc"
 
 # Big-integer arithmetic for x86-64
 # See ../bigint.inc for the shared API and semantics.

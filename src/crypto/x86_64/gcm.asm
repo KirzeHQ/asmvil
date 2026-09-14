@@ -1,4 +1,5 @@
 .intel_syntax noprefix
+.include "common.inc"
 
 # GCM/GMAC SP 800-38D for x86-64; see ../gcm.inc for the API.
 

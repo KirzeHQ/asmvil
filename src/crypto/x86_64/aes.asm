@@ -1,4 +1,5 @@
 .intel_syntax noprefix
+.include "common.inc"
 
 # AES-128/256 FIPS 197 with AES-NI; see ../aes.inc for the API.
 

@@ -1,4 +1,5 @@
 .intel_syntax noprefix
+.include "common.inc"
 
 # HKDF-SHA256 / HKDF-SHA384 / HKDF-SHA512 extract + expand (RFC 5869)
 # for x86-64. See ../hkdf.inc for the shared API notes.

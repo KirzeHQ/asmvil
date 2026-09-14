@@ -1,23 +1,23 @@
-#[cfg(all(test, target_arch = "x86_64"))]
+#[cfg(test)]
 mod ffi;
-#[cfg(all(test, target_arch = "x86_64"))]
+#[cfg(test)]
 mod fixture;
-#[cfg(all(test, target_arch = "x86_64"))]
+#[cfg(test)]
 mod helpers;
 
-#[cfg(all(test, target_arch = "x86_64"))]
+#[cfg(test)]
 mod aes;
-#[cfg(all(test, target_arch = "x86_64"))]
+#[cfg(test)]
 mod bigint;
-#[cfg(all(test, target_arch = "x86_64"))]
+#[cfg(test)]
 mod chacha_poly_aead;
-#[cfg(all(test, target_arch = "x86_64"))]
+#[cfg(test)]
 mod gcm;
-#[cfg(all(test, target_arch = "x86_64"))]
+#[cfg(test)]
 mod hashes;
-#[cfg(all(test, target_arch = "x86_64"))]
+#[cfg(test)]
 mod hmac_hkdf;
-#[cfg(all(test, target_arch = "x86_64"))]
+#[cfg(test)]
 mod registry;
-#[cfg(all(test, target_arch = "x86_64"))]
+#[cfg(test)]
 mod x25519;

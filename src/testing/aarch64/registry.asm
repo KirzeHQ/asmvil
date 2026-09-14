@@ -8,6 +8,7 @@
 .endm
 
 .macro ASM_FUNC name, signature, flags, source_dir, source_name
+    .weak \name
     .section .rodata
 .Lasmvil_test_name_\@:
     .asciz "\name"

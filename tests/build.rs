@@ -20,10 +20,30 @@ fn main() {
     };
     let crypto = root.join("src/crypto").join(&arch);
     let testing_dir = root.join("src/testing").join(&arch);
-    println!("cargo:rustc-check-cfg=cfg(asmvil_crypto_missing)");
-    if !crypto.is_dir() {
-        println!("cargo:rustc-cfg=asmvil_crypto_missing");
+    println!("cargo:rerun-if-changed={}", root.join("src/testing/tests.inc").display());
+    let manifest = fs::read_to_string(root.join("src/testing/tests.inc")).unwrap();
+    let mut missing = String::new();
+    for line in manifest.lines() {
+        let Some(args) = line.trim().strip_prefix("ASM_FUNC ") else {
+            continue;
+        };
+        let fields: Vec<_> = args.split(',').map(str::trim).collect();
+        if fields.len() < 5 {
+            continue;
+        }
+        let symbol = fields[0];
+        let source = root.join("src").join(fields[3]).join(&arch).join(fields[4]).with_extension("asm");
+        let present = source.exists()
+            && fs::read_to_string(&source).map(|text| text.contains(symbol)).unwrap_or(false);
+        if !present {
+            missing.push_str(&format!(
+                "#[unsafe(no_mangle)]\npub unsafe extern \"C\" fn {symbol}() -> u64 {{\n    eprintln!(\"FAIL {symbol}: Implementation missing for {arch}\");\n    0\n}}\n\n"
+            ));
+        }
     }
+    let missing_file = out.join("missing_symbols.rs");
+    fs::write(&missing_file, missing).unwrap();
+    println!("cargo:rerun-if-changed={}", missing_file.display());
     let mut objects = Vec::new();
     if crypto.is_dir() {
         for entry in fs::read_dir(&crypto).unwrap() {

@@ -86,3 +86,26 @@ fn bigint_mod_reduce_and_prime_inverse_match_biguint() {
         limbs(&number(&a).modpow(&(&m - 2u32), &m), 2)
     );
 }
+
+#[test]
+fn bigint_mod_inv_odd_matches_biguint() {
+    let cases = [(3u64, 101u64), (17, 221), (37, 255), (64, 899), (123, 1001)];
+    for (a0, m0) in cases {
+        let a = [a0, 0];
+        let modulus = [m0, 0];
+        let mut out = [0u64; 2];
+        let modulus_big = BigUint::from(m0);
+        let mut expected = None;
+        for x in 1..m0 {
+            if (BigUint::from(a0) * BigUint::from(x)) % &modulus_big == BigUint::from(1u32) {
+                expected = Some(BigUint::from(x));
+                break;
+            }
+        }
+        let status = unsafe { bigint_mod_inv_odd(out.as_mut_ptr(), a.as_ptr(), modulus.as_ptr(), 2) };
+        assert_eq!(status, u64::from(expected.is_none()));
+        if let Some(expected) = expected {
+            assert_eq!(out.to_vec(), limbs(&expected, 2));
+        }
+    }
+}

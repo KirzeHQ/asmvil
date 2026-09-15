@@ -9,6 +9,7 @@
 .equ ASM_TEST_SIG_X25519,                       8
 .equ ASM_TEST_SIG_BIGINT_MOD_REDUCE,            9
 .equ ASM_TEST_SIG_BIGINT_MOD_INV_PRIME,        10
+.equ ASM_TEST_SIG_BIGINT_MOD_INV_ODD,           11
 
 .equ ASM_TEST_VERSION,                          1
 .equ ASM_TEST_RECORD_SIZE,                      56

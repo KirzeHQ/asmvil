@@ -95,6 +95,12 @@ unsafe extern "C" {
         m: *const u64,
         n: usize,
     ) -> u64;
+    pub(crate) fn bigint_mod_inv_odd(
+        o: *mut u64,
+        a: *const u64,
+        m: *const u64,
+        n: usize,
+    ) -> u64;
     pub(crate) fn bigint_cmp(a: *const u64, b: *const u64, n: usize) -> i64;
     pub(crate) fn ct_eq(a: *const u64, b: *const u64, n: usize) -> u64;
     pub(crate) fn ct_lt(a: *const u64, b: *const u64, n: usize) -> u8;

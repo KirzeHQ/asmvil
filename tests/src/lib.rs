@@ -1,26 +1,28 @@
-#[cfg(all(test, not(asmvil_crypto_missing)))]
+#[cfg(test)]
 mod ffi;
-#[cfg(all(test, not(asmvil_crypto_missing)))]
+#[cfg(test)]
 mod fixture;
-#[cfg(all(test, not(asmvil_crypto_missing)))]
+#[cfg(test)]
 mod helpers;
 
-#[cfg(all(test, not(asmvil_crypto_missing)))]
+#[cfg(test)]
 mod aes;
-#[cfg(all(test, not(asmvil_crypto_missing)))]
+#[cfg(test)]
 mod bigint;
-#[cfg(all(test, not(asmvil_crypto_missing)))]
+#[cfg(test)]
 mod chacha_poly_aead;
-#[cfg(all(test, not(asmvil_crypto_missing)))]
+#[cfg(test)]
 mod gcm;
-#[cfg(all(test, not(asmvil_crypto_missing)))]
+#[cfg(test)]
 mod hashes;
-#[cfg(all(test, not(asmvil_crypto_missing)))]
+#[cfg(test)]
 mod hmac_hkdf;
-#[cfg(all(test, not(asmvil_crypto_missing)))]
+#[cfg(test)]
 mod registry;
-#[cfg(all(test, not(asmvil_crypto_missing)))]
+#[cfg(test)]
 mod x25519;
 
-#[cfg(all(test, asmvil_crypto_missing))]
-mod missing;
+#[cfg(test)]
+mod missing {
+    include!(concat!(env!("OUT_DIR"), "/missing_symbols.rs"));
+}

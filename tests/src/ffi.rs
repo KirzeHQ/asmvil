@@ -83,6 +83,18 @@ unsafe extern "C" {
     pub(crate) fn bigint_sqr(o: *mut u64, a: *const u64, n: usize);
     pub(crate) fn bigint_shl(o: *mut u64, a: *const u64, n: usize, bits: usize);
     pub(crate) fn bigint_shr(o: *mut u64, a: *const u64, n: usize, bits: usize);
+    pub(crate) fn bigint_mod_reduce(
+        o: *mut u64,
+        a: *const u64,
+        m: *const u64,
+        n: usize,
+    );
+    pub(crate) fn bigint_mod_inv_prime(
+        o: *mut u64,
+        a: *const u64,
+        m: *const u64,
+        n: usize,
+    ) -> u64;
     pub(crate) fn bigint_cmp(a: *const u64, b: *const u64, n: usize) -> i64;
     pub(crate) fn ct_eq(a: *const u64, b: *const u64, n: usize) -> u64;
     pub(crate) fn ct_lt(a: *const u64, b: *const u64, n: usize) -> u8;

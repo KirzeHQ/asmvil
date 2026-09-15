@@ -57,6 +57,8 @@ ASM_FUNC bigint_mul, ASM_TEST_SIG_BIGINT_BINARY, 0, crypto, bigint
 ASM_FUNC bigint_sqr, ASM_TEST_SIG_BIGINT_BINARY, 0, crypto, bigint
 ASM_FUNC bigint_shl, ASM_TEST_SIG_BIGINT_SHIFT, 0, crypto, bigint
 ASM_FUNC bigint_shr, ASM_TEST_SIG_BIGINT_SHIFT, 0, crypto, bigint
+ASM_FUNC bigint_mod_reduce, ASM_TEST_SIG_BIGINT_MOD_REDUCE, 0, crypto, bigint
+ASM_FUNC bigint_mod_inv_prime, ASM_TEST_SIG_BIGINT_MOD_INV_PRIME, 0, crypto, bigint
 ASM_FUNC bigint_cmp, ASM_TEST_SIG_BIGINT_BINARY, 0, crypto, bigint
 ASM_FUNC ct_eq, ASM_TEST_SIG_BIGINT_BINARY, 0, crypto, bigint
 ASM_FUNC ct_lt, ASM_TEST_SIG_BIGINT_BINARY, 0, crypto, bigint

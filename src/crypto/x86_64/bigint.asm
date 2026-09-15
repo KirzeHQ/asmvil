@@ -18,6 +18,8 @@
 .global ct_eq
 .global ct_lt
 .global ct_select
+.global bigint_mod_reduce
+.global bigint_mod_inv_prime
 
 # bigint_add(rdi=dst, rsi=a, rdx=b, rcx=limbs) -> rax=carry
 bigint_add:
@@ -275,4 +277,237 @@ ct_select:
     jmp 0b
 2:
     pop rbx
+    ret
+
+# bigint_mod_reduce(rdi=dst, rsi=input[2*n], rdx=modulus[n], rcx=n)
+# Reduces a wide unsigned value with a fixed 128*n-bit restoring division.
+bigint_mod_reduce:
+    push rbp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    mov r12, rdi
+    mov r13, rsi
+    mov r14, rdx
+    mov r15, rcx
+    lea rax, [r15*8]
+    lea rdx, [rax*2]
+    sub rsp, rdx
+    mov rbp, rsp
+    mov rdi, rbp
+    xor eax, eax
+    mov rcx, r15
+    rep stosq
+    lea r8, [rbp + r15*8]
+    mov rbx, r15
+    shl rbx, 7
+.Lred_bit:
+    lea rax, [rbx - 1]
+    mov rdx, rax
+    shr rdx, 6
+    and eax, 63
+    mov rcx, [r13 + rdx*8]
+    bt rcx, rax
+    setc r10b
+    xor edx, edx
+    mov r11, r15
+    bt r10, 0
+.Lred_shift:
+    mov rax, [rbp + rdx*8]
+    adc rax, rax
+    mov [rbp + rdx*8], rax
+    inc rdx
+    dec r11
+    jnz .Lred_shift
+.Lred_shift_done:
+    setc r10b
+    mov rdi, r8
+    mov rsi, rbp
+    mov rdx, r14
+    mov rcx, r15
+    clc
+.Lred_sub:
+    mov rax, [rsi]
+    sbb rax, [rdx]
+    mov [rdi], rax
+    lea rsi, [rsi + 8]
+    lea rdx, [rdx + 8]
+    lea rdi, [rdi + 8]
+    dec rcx
+    jnz .Lred_sub
+.Lred_sub_done:
+    setc r11b
+    movzx r10d, r10b
+    movzx r11d, r11b
+    xor r11d, 1
+    or r10d, r11d
+    neg r10d
+    xor edx, edx
+.Lred_select:
+    cmp rdx, r15
+    jae .Lred_select_done
+    mov rax, [rbp + rdx*8]
+    mov rcx, [r8 + rdx*8]
+    xor rcx, rax
+    and rcx, r10
+    xor rax, rcx
+    mov [rbp + rdx*8], rax
+    inc rdx
+    jmp .Lred_select
+.Lred_select_done:
+    dec rbx
+    jnz .Lred_bit
+    mov rsi, rbp
+    mov rdi, r12
+    mov rcx, r15
+    rep movsq
+    mov rax, rsp
+    lea rdx, [r15*8]
+    add rax, rdx
+    add rax, rdx
+    add rsp, rdx
+    add rsp, rdx
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+# bigint_mod_inv_prime(rdi=dst, rsi=a, rdx=prime, rcx=n) -> rax=0
+# Computes a^(prime-2) mod prime with a fixed n*64-bit exponentiation.
+bigint_mod_inv_prime:
+    push rbp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    mov r12, rdi
+    mov r13, rsi
+    mov r14, rdx
+    mov r15, rcx
+    lea rax, [r15*8]
+    lea rdx, [rax*4]
+    add rdx, rax
+    add rdx, rax
+    sub rsp, rdx
+    mov rbp, rsp
+    lea r8, [rbp + r15*8]
+    mov rcx, r15
+    mov rdi, r8
+    mov rsi, r13
+    rep movsq
+    lea r9, [rbp + r15*8]
+    lea rax, [r15*8]
+    shl rax, 2
+    add r9, rax
+    mov rdi, r9
+    mov rsi, r14
+    mov rcx, r15
+    rep movsq
+    mov rax, [r9]
+    sub rax, 2
+    mov [r9], rax
+    mov rdi, rbp
+    xor eax, eax
+    mov rcx, r15
+    rep stosq
+    mov QWORD PTR [rbp], 1
+    mov rbx, r15
+    shl rbx, 6
+.Linv_loop:
+    lea rax, [r15*8]
+    lea rdi, [rbp + rax*2]
+    mov rsi, rbp
+    mov rdx, rbp
+    add rdx, 0
+    mov rcx, r15
+    call bigint_mul
+    lea rsi, [rbp + r15*8]
+    lea rax, [r15*8]
+    add rsi, rax
+    mov rdi, rbp
+    mov rdx, r14
+    mov rcx, r15
+    call bigint_mod_reduce
+    lea r9, [rbp + r15*8]
+    lea rax, [r15*8]
+    shl rax, 2
+    add r9, rax
+    lea rax, [rbx - 1]
+    mov rdx, rax
+    shr rdx, 6
+    and eax, 63
+    mov rcx, [r9 + rdx*8]
+    bt rcx, rax
+    setc r10b
+    lea rax, [r15*8]
+    lea rdx, [rax*4]
+    add rdx, rax
+    add rdx, rax
+    add rdx, rbp
+    mov BYTE PTR [rdx], r10b
+    lea rax, [r15*8]
+    lea rdi, [rbp + rax*2]
+    mov rsi, rbp
+    lea rdx, [rbp + r15*8]
+    mov rcx, r15
+    call bigint_mul
+    lea rsi, [rbp + r15*8]
+    lea rax, [r15*8]
+    add rsi, rax
+    lea rdi, [rbp]
+    lea rax, [r15*8]
+    shl rax, 2
+    add rdi, rax
+    mov rdx, r14
+    mov rcx, r15
+    call bigint_mod_reduce
+    lea rdi, [rbp]
+    lea rax, [r15*8]
+    shl rax, 2
+    add rdi, rax
+    lea rax, [r15*8]
+    lea rdx, [rax*4]
+    add rdx, rax
+    add rdx, rax
+    add rdx, rbp
+    mov r11, rdx
+    movzx r10d, BYTE PTR [r11]
+    neg r10d
+    xor edx, edx
+.Linv_select:
+    cmp rdx, r15
+    jae .Linv_select_done
+    mov rax, [rbp + rdx*8]
+    mov rcx, [rdi + rdx*8]
+    xor rcx, rax
+    and rcx, r10
+    xor rax, rcx
+    mov [rbp + rdx*8], rax
+    inc rdx
+    jmp .Linv_select
+.Linv_select_done:
+    dec rbx
+    jnz .Linv_loop
+    mov rsi, rbp
+    mov rdi, r12
+    mov rcx, r15
+    rep movsq
+    mov rax, 0
+    lea rdx, [r15*8]
+    lea rcx, [rdx*4]
+    add rcx, rdx
+    add rcx, rdx
+    add rsp, rcx
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
     ret

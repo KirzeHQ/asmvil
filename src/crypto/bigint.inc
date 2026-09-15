@@ -18,3 +18,5 @@
 # ct_eq(a, b, limbs): returns 1 if a == b else 0, constant time.
 # ct_lt(a, b, limbs): returns 1 if a < b else 0, constant time (unsigned).
 # ct_select(dst, a, b, limbs, bit): if bit then dst=b else dst=a, constant time.
+# bigint_mod_reduce(dst, input[2*limbs], modulus, limbs): input mod modulus.
+# bigint_mod_inv_prime(dst, a, prime, limbs): a^(prime-2) mod prime.

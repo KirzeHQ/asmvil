@@ -63,3 +63,26 @@ fn zbigint_all_operations_and_constant_time_helpers() {
         assert_eq!(ct_lt(a.as_ptr(), a.as_ptr(), 2), 0);
     }
 }
+
+#[test]
+fn bigint_mod_reduce_and_prime_inverse_match_biguint() {
+    let modulus = [17u64, 0];
+    let input = [0x1234_5678_9abc_def0, 0xfedc_ba98_7654_3210, 0, 0];
+    let a = [5u64, 0];
+    let m = number(&modulus);
+    let wide = number(&input);
+    let mut reduced = [0u64; 2];
+    let mut inverse = [0u64; 2];
+    unsafe {
+        bigint_mod_reduce(reduced.as_mut_ptr(), input.as_ptr(), modulus.as_ptr(), 2);
+        assert_eq!(
+            bigint_mod_inv_prime(inverse.as_mut_ptr(), a.as_ptr(), modulus.as_ptr(), 2),
+            0
+        );
+    }
+    assert_eq!(reduced.to_vec(), limbs(&(wide % &m), 2));
+    assert_eq!(
+        inverse.to_vec(),
+        limbs(&number(&a).modpow(&(&m - 2u32), &m), 2)
+    );
+}

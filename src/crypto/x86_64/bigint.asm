@@ -20,6 +20,7 @@
 .global ct_select
 .global bigint_mod_reduce
 .global bigint_mod_inv_prime
+.global bigint_mod_inv_odd
 
 # bigint_add(rdi=dst, rsi=a, rdx=b, rcx=limbs) -> rax=carry
 bigint_add:
@@ -243,10 +244,10 @@ ct_eq:
 
 # ct_lt(rdi=a, rsi=b, rdx=limbs) -> rax = 1 if a < b else 0, constant time
 ct_lt:
-    clc
-0:
     test rdx, rdx
     jz 1f
+    clc
+0:
     mov r8, [rdi]
     mov r9, [rsi]
     sbb r8, r9
@@ -343,7 +344,7 @@ bigint_mod_reduce:
     movzx r11d, r11b
     xor r11d, 1
     or r10d, r11d
-    neg r10d
+    neg r10
     xor edx, edx
 .Lred_select:
     cmp rdx, r15
@@ -478,7 +479,7 @@ bigint_mod_inv_prime:
     add rdx, rbp
     mov r11, rdx
     movzx r10d, BYTE PTR [r11]
-    neg r10d
+    neg r10
     xor edx, edx
 .Linv_select:
     cmp rdx, r15
@@ -503,6 +504,711 @@ bigint_mod_inv_prime:
     lea rcx, [rdx*4]
     add rcx, rdx
     add rcx, rdx
+    add rsp, rcx
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+# Address one of the ten n-limb work arrays used by bigint_mod_inv_odd.
+.macro INV_ODD_PTR reg, slot
+    .if \slot == 0
+        mov \reg, rbp
+    .else
+        lea \reg, [r15*8]
+        imul \reg, \slot
+        add \reg, rbp
+    .endif
+.endm
+
+# (a - (b & mask)) / 2. The selected subtraction is known not to borrow.
+inv_odd_num_candidate:
+    push rbx
+    push r12
+    mov rbx, rcx
+    xor r10d, r10d
+    clc
+.Linv_num_sub:
+    mov rax, [rsi + r10*8]
+    mov r11, [rdx + r10*8]
+    setc r12b
+    and r11, r8
+    bt r12, 0
+    sbb rax, r11
+    mov [rdi + r10*8], rax
+    lea r10, [r10 + 1]
+    dec rcx
+    jnz .Linv_num_sub
+    lea r10, [rbx - 1]
+    clc
+.Linv_num_half:
+    mov rax, [rdi + r10*8]
+    rcr rax, 1
+    mov [rdi + r10*8], rax
+    dec r10
+    jns .Linv_num_half
+    pop r12
+    pop rbx
+    ret
+
+# Half (a - (b & mask)) modulo m, keeping the coefficient in [0,m).
+inv_odd_coef_candidate:
+    push rbx
+    push r12
+    mov rbx, rcx
+    xor r10d, r10d
+    clc
+.Linv_coef_sub:
+    mov rax, [rsi + r10*8]
+    mov r11, [rdx + r10*8]
+    setc r12b
+    and r11, r8
+    bt r12, 0
+    sbb rax, r11
+    mov [rdi + r10*8], rax
+    lea r10, [r10 + 1]
+    dec rcx
+    jnz .Linv_coef_sub
+    setc r11b
+    movzx r8d, r11b
+    neg r8
+    xor r10d, r10d
+    mov rcx, rbx
+    clc
+.Linv_coef_restore:
+    setc r12b
+    mov rax, [r9 + r10*8]
+    and rax, r8
+    bt r12, 0
+    adc [rdi + r10*8], rax
+    lea r10, [r10 + 1]
+    dec rcx
+    jnz .Linv_coef_restore
+    mov r8, [rdi]
+    and r8d, 1
+    neg r8
+    xor r10d, r10d
+    mov rcx, rbx
+    clc
+.Linv_coef_make_even:
+    setc r12b
+    mov rax, [r9 + r10*8]
+    and rax, r8
+    bt r12, 0
+    adc [rdi + r10*8], rax
+    lea r10, [r10 + 1]
+    dec rcx
+    jnz .Linv_coef_make_even
+    setc r11b
+    movzx r11d, r11b
+    lea r10, [rbx - 1]
+    bt r11, 0
+.Linv_coef_half:
+    mov rax, [rdi + r10*8]
+    rcr rax, 1
+    mov [rdi + r10*8], rax
+    dec r10
+    jns .Linv_coef_half
+    pop r12
+    pop rbx
+    ret
+
+# bigint_mod_inv_odd(rdi=dst, rsi=a, rdx=modulus, rcx=n) -> rax=status
+# Fixed-schedule binary extended GCD for odd moduli greater than one.
+bigint_mod_inv_odd:
+    push rbp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    mov r12, rdi
+    mov r13, rsi
+    mov r14, rdx
+    mov r15, rcx
+
+    # Ten n-limb arrays and 72 bytes of metadata preserve call alignment.
+    lea rax, [r15*8]
+    imul rax, 10
+    add rax, 72
+    sub rsp, rax
+    mov rbp, rsp
+    INV_ODD_PTR rbx, 10
+
+    # Reduce the n-limb input through a zero-extended 2n-limb temporary.
+    INV_ODD_PTR rdi, 8
+    xor eax, eax
+    lea rcx, [r15*2]
+    rep stosq
+    INV_ODD_PTR rdi, 8
+    mov rsi, r13
+    mov rcx, r15
+    rep movsq
+    INV_ODD_PTR rdi, 0
+    INV_ODD_PTR rsi, 8
+    mov rdx, r14
+    mov rcx, r15
+    call bigint_mod_reduce
+
+    INV_ODD_PTR rdi, 1
+    mov rsi, r14
+    mov rcx, r15
+    rep movsq
+    INV_ODD_PTR rdi, 2
+    xor eax, eax
+    lea rcx, [r15*2]
+    rep stosq
+    INV_ODD_PTR rdi, 2
+    mov QWORD PTR [rdi], 1
+
+    # Two bit-widths suffice for the fixed binary-GCD schedule.
+    mov rax, r15
+    shl rax, 7
+    mov [rbx], rax
+.Linv_odd_iter:
+    # Exclusive cases: u-even, then v-even, then the two odd comparisons.
+    mov rax, [rbp]
+    and eax, 1
+    xor eax, 1
+    neg rax
+    mov [rbx + 8], rax
+    INV_ODD_PTR r8, 1
+    mov rax, [r8]
+    and eax, 1
+    xor eax, 1
+    neg rax
+    mov rdx, [rbx + 8]
+    not rdx
+    and rax, rdx
+    mov [rbx + 16], rax
+    mov rdi, r8
+    mov rsi, rbp
+    mov rdx, r15
+    call ct_lt
+    neg rax
+    mov rdx, [rbx + 8]
+    or rdx, [rbx + 16]
+    not rdx
+    and rax, rdx
+    mov [rbx + 24], rax
+    not rax
+    and rax, rdx
+    mov [rbx + 32], rax
+
+    INV_ODD_PTR rdi, 4
+    INV_ODD_PTR rsi, 0
+    INV_ODD_PTR rdx, 1
+    mov rcx, r15
+    mov r8, [rbx + 24]
+    call inv_odd_num_candidate
+    INV_ODD_PTR rdi, 5
+    INV_ODD_PTR rsi, 1
+    INV_ODD_PTR rdx, 0
+    mov rcx, r15
+    mov r8, [rbx + 32]
+    call inv_odd_num_candidate
+    INV_ODD_PTR rdi, 6
+    INV_ODD_PTR rsi, 2
+    INV_ODD_PTR rdx, 3
+    mov rcx, r15
+    mov r8, [rbx + 24]
+    mov r9, r14
+    call inv_odd_coef_candidate
+    INV_ODD_PTR rdi, 7
+    INV_ODD_PTR rsi, 3
+    INV_ODD_PTR rdx, 2
+    mov rcx, r15
+    mov r8, [rbx + 32]
+    mov r9, r14
+    call inv_odd_coef_candidate
+
+    xor eax, eax
+.Linv_odd_select:
+    mov rdx, [rbx + 8]
+    or rdx, [rbx + 24]
+    mov rsi, [rbp + rax*8]
+    INV_ODD_PTR rdi, 4
+    mov rcx, [rdi + rax*8]
+    xor rcx, rsi
+    and rcx, rdx
+    xor rsi, rcx
+    mov [rbp + rax*8], rsi
+    mov rdx, [rbx + 16]
+    or rdx, [rbx + 32]
+    INV_ODD_PTR rdi, 1
+    mov rsi, [rdi + rax*8]
+    INV_ODD_PTR rdi, 5
+    mov rcx, [rdi + rax*8]
+    xor rcx, rsi
+    and rcx, rdx
+    xor rsi, rcx
+    INV_ODD_PTR rdi, 1
+    mov [rdi + rax*8], rsi
+    mov rdx, [rbx + 8]
+    or rdx, [rbx + 24]
+    INV_ODD_PTR rdi, 2
+    mov rsi, [rdi + rax*8]
+    INV_ODD_PTR rdi, 6
+    mov rcx, [rdi + rax*8]
+    xor rcx, rsi
+    and rcx, rdx
+    xor rsi, rcx
+    INV_ODD_PTR rdi, 2
+    mov [rdi + rax*8], rsi
+    mov rdx, [rbx + 16]
+    or rdx, [rbx + 32]
+    INV_ODD_PTR rdi, 3
+    mov rsi, [rdi + rax*8]
+    INV_ODD_PTR rdi, 7
+    mov rcx, [rdi + rax*8]
+    xor rcx, rsi
+    and rcx, rdx
+    xor rsi, rcx
+    INV_ODD_PTR rdi, 3
+    mov [rdi + rax*8], rsi
+    inc rax
+    cmp rax, r15
+    jb .Linv_odd_select
+    dec QWORD PTR [rbx]
+    jnz .Linv_odd_iter
+
+    # Compute constant-time u==1 and v==1 flags.
+    mov rax, [rbp]
+    xor rax, 1
+    INV_ODD_PTR r8, 1
+    mov rdx, [r8]
+    xor rdx, 1
+    mov rcx, 1
+.Linv_odd_eq_one:
+    cmp rcx, r15
+    jae .Linv_odd_eq_done
+    or rax, [rbp + rcx*8]
+    or rdx, [r8 + rcx*8]
+    inc rcx
+    jmp .Linv_odd_eq_one
+.Linv_odd_eq_done:
+    test rax, rax
+    sete al
+    movzx eax, al
+    mov [rbx + 40], rax
+    test rdx, rdx
+    sete dl
+    movzx edx, dl
+    mov [rbx + 48], rdx
+    neg rax
+    neg rdx
+    xor ecx, ecx
+.Linv_odd_output:
+    INV_ODD_PTR r8, 2
+    mov rsi, [r8 + rcx*8]
+    and rsi, rax
+    INV_ODD_PTR r8, 3
+    mov rdi, [r8 + rcx*8]
+    and rdi, rdx
+    or rsi, rdi
+    mov [r12 + rcx*8], rsi
+    inc rcx
+    cmp rcx, r15
+    jb .Linv_odd_output
+    mov rax, [rbx + 40]
+    or rax, [rbx + 48]
+    xor rax, 1
+    and eax, 1
+    lea rdx, [r15*8]
+    imul rdx, 10
+    add rdx, 72
+    add rsp, rdx
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
+# Preserved first implementation for comparison while the replacement is tested.
+bigint_mod_inv_odd_wip:
+    push rbp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    mov r12, rdi
+    mov r13, rsi
+    mov r14, rdx
+    mov r15, rcx
+
+    # u, v, x, y and four candidate arrays, plus four masks.
+    lea rax, [r15*8]
+    lea rdx, [rax*8]
+    add rdx, 72
+    sub rsp, rdx
+    mov rbp, rsp
+    lea r8, [rbp + r15*8]
+    lea rax, [r15*8]
+    lea rdx, [rax*2]
+    add rdx, rax
+    lea r9, [r8 + rdx]
+    lea r10, [r9 + r15*8]
+    lea r11, [r10 + r15*8]
+
+    mov rdi, rbp
+    mov rsi, r13
+    mov rcx, r15
+    rep movsq
+    mov rdi, r8
+    mov rsi, r14
+    mov rcx, r15
+    rep movsq
+    xor eax, eax
+    lea rax, [r15*8]
+    lea rdi, [rbp + rax*2]
+    mov rcx, r15
+    rep stosq
+    mov QWORD PTR [rbp + rax*2], 1
+    lea rdi, [rbp + rax*2]
+    add rdi, rax
+    mov rcx, r15
+    rep stosq
+
+    # Normalize u once, without making the input range part of the schedule.
+    mov rdi, r9
+    mov rsi, rbp
+    mov rdx, r8
+    mov rcx, r15
+    call bigint_sub
+    neg rax
+    mov rdx, rax
+    lea r8, [rbp + r15*8]
+    lea r9, [r8 + r15*8]
+    lea rax, [r15*8]
+    add r9, rax
+    add r9, rax
+    lea r10, [r9 + r15*8]
+    lea r11, [r10 + r15*8]
+    xor eax, eax
+    xor ebx, ebx
+.Linvodd_norm:
+    cmp rax, r15
+    jae .Linvodd_norm_done
+    mov rsi, [rbp + rax*8]
+    mov rdi, [r9 + rax*8]
+    xor rdi, rsi
+    and rdi, rdx
+    xor rsi, rdi
+    mov [rbp + rax*8], rsi
+    inc rax
+    jmp .Linvodd_norm
+.Linvodd_norm_done:
+    lea rsi, [r15*8]
+    lea rdx, [rsi*8]
+    lea rbx, [rbp + rdx]
+    lea rax, [rbp + rsi*4]
+    mov [rbx + 40], rax
+    add rax, rsi
+    mov [rbx + 48], rax
+    add rax, rsi
+    mov [rbx + 56], rax
+    add rax, rsi
+    mov [rbx + 64], rax
+    lea rdx, [r15*8]
+    shl rdx, 7
+    mov [rbx + 32], rdx
+.Linvodd_iter:
+    # Masks are: u-even, v-even, odd-and-u-greater, odd-and-v-greater.
+    mov rax, [rbp]
+    and eax, 1
+    xor eax, 1
+    neg rax
+    mov [rbx], rax
+    mov rax, [r8]
+    and eax, 1
+    xor eax, 1
+    neg rax
+    mov [rbx + 8], rax
+    mov rdi, r8
+    mov rsi, rbp
+    mov rdx, r15
+    call ct_lt
+    lea r8, [rbp + r15*8]
+    mov r9, [rbx + 40]
+    mov r10, [rbx + 48]
+    mov r11, [rbx + 56]
+    neg rax
+    mov rdx, rax
+    mov rax, [rbx]
+    not rax
+    mov rdi, [rbx + 8]
+    not rdi
+    and rax, rdi
+    and rax, rdx
+    mov [rbx + 16], rax
+    not rdx
+    mov rax, [rbx]
+    not rax
+    mov rdi, [rbx + 8]
+    not rdi
+    and rax, rdi
+    and rax, rdx
+    mov [rbx + 24], rax
+
+    # Candidate numerators: tu=u-(u>v ? v : 0), and similarly for tv.
+    xor eax, eax
+    clc
+.Lio_num:
+    cmp rax, r15
+    jae .Lio_num_done
+    mov rdx, [rbx + 16]
+    mov rdi, [r8 + rax*8]
+    and rdi, rdx
+    mov rsi, [rbp + rax*8]
+    sbb rsi, rdi
+    mov [r9 + rax*8], rsi
+    mov rdx, [rbx + 24]
+    mov rdi, [rbp + rax*8]
+    and rdi, rdx
+    mov rsi, [r8 + rax*8]
+    sbb rsi, rdi
+    mov [r10 + rax*8], rsi
+    inc rax
+    jmp .Lio_num
+.Lio_num_done:
+    # Odd/odd subtraction candidates also take the required division by two.
+    lea rax, [r15 - 1]
+    clc
+.Lio_half_u:
+    mov rdx, [r9 + rax*8]
+    rcr rdx, 1
+    mov [r9 + rax*8], rdx
+    test rax, rax
+    jz .Lio_half_v_start
+    dec rax
+    jmp .Lio_half_u
+.Lio_half_v_start:
+    lea rax, [r15 - 1]
+    clc
+.Lio_half_v:
+    mov rdx, [r10 + rax*8]
+    rcr rdx, 1
+    mov [r10 + rax*8], rdx
+    test rax, rax
+    jz .Lio_num_halved
+    dec rax
+    jmp .Lio_half_v
+.Lio_num_halved:
+    # Candidate coefficient numerators are reduced modulo m.
+    xor eax, eax
+    clc
+.Lio_coef:
+    cmp rax, r15
+    jae .Lio_coef_done
+     mov rdx, [rbx]
+     or rdx, [rbx + 16]
+    mov rdi, [rbx + 16]
+    or rdi, rdx
+    mov rdi, [rbx + 48]
+    mov rdx, [rdi + rax*8]
+     mov rdi, [rbx + 56]
+    mov rsi, [rdi + rax*8]
+    and rsi, rdi
+    sub rdx, rsi
+    mov [r11 + rax*8], rdx
+     mov rdx, [rbx + 8]
+     or rdx, [rbx + 24]
+    mov rdi, [rbx + 24]
+    or rdi, rdx
+    mov rdi, [rbx + 40]
+    mov rdx, [rdi + rax*8]
+     mov rdi, [rbx + 64]
+    mov rsi, [rdi + rax*8]
+    and rsi, rdi
+    sub rdx, rsi
+    mov rdi, [rbx + 64]
+    mov [rdi + rax*8], rdx
+    inc rax
+    jmp .Lio_coef
+.Lio_coef_done:
+    # Add m back after coefficient subtraction when it borrowed.
+    mov rdi, [rbx + 16]
+    neg rdi
+    xor eax, eax
+    clc
+.Lio_addx:
+    cmp rax, r15
+    jae .Lio_addx_done
+    mov rdx, [r14 + rax*8]
+    and rdx, rdi
+    mov rsi, [r11 + rax*8]
+    adc rsi, rdx
+    mov [r11 + rax*8], rsi
+    inc rax
+    jmp .Lio_addx
+.Lio_addx_done:
+    mov rdi, [rbx + 24]
+    neg rdi
+    xor eax, eax
+    clc
+.Lio_addy:
+    cmp rax, r15
+    jae .Lio_addy_done
+    mov rdx, [r14 + rax*8]
+    and rdx, rdi
+    mov rdi, [rbx + 64]
+    mov rsi, [rdi + rax*8]
+    adc rsi, rdx
+    mov rdi, [rbx + 64]
+    mov [rdi + rax*8], rsi
+    inc rax
+    jmp .Lio_addy
+.Lio_addy_done:
+    # Divide candidates by two, adding m first for odd coefficients.
+    mov rdi, [rbx]
+    neg rdi
+    xor eax, eax
+    clc
+.Lio_halfx_add:
+    cmp rax, r15
+    jae .Lio_halfx_shift
+    mov rdx, [r14 + rax*8]
+    and rdx, rdi
+    mov rsi, [r11 + rax*8]
+    adc rsi, rdx
+    mov [r11 + rax*8], rsi
+    inc rax
+    jmp .Lio_halfx_add
+.Lio_halfx_shift:
+    lea rax, [r15 - 1]
+    clc
+.Lio_halfx:
+    mov rdx, [r11 + rax*8]
+    rcr rdx, 1
+    mov [r11 + rax*8], rdx
+    test rax, rax
+    jz .Lio_halfy_add
+    dec rax
+    jmp .Lio_halfx
+.Lio_halfy_add:
+    mov rdi, [rbx + 8]
+    neg rdi
+    xor eax, eax
+    clc
+.Lio_halfy_add_loop:
+    cmp rax, r15
+    jae .Lio_halfy_shift
+    mov rdx, [r14 + rax*8]
+    and rdx, rdi
+    mov rdi, [rbx + 64]
+    mov rsi, [rdi + rax*8]
+    adc rsi, rdx
+    mov rdi, [rbx + 64]
+    mov [rdi + rax*8], rsi
+    inc rax
+    jmp .Lio_halfy_add_loop
+.Lio_halfy_shift:
+    lea rax, [r15 - 1]
+    clc
+.Lio_halfy:
+    mov rdi, [rbx + 64]
+    mov rdx, [rdi + rax*8]
+    rcr rdx, 1
+    mov rdi, [rbx + 56]
+    mov [rdi + rax*8], rdx
+    test rax, rax
+    jz .Lio_select
+    dec rax
+    jmp .Lio_halfy
+.Lio_select:
+    xor eax, eax
+.Lio_select_loop:
+    cmp rax, r15
+    jae .Lio_next
+    mov rdx, [rbx]
+    mov rsi, [rbp + rax*8]
+    mov rdi, [r9 + rax*8]
+    xor rdi, rsi
+    and rdi, rdx
+    xor rsi, rdi
+    mov [rbp + rax*8], rsi
+    mov rdx, [rbx + 8]
+    mov rsi, [r8 + rax*8]
+    mov rdi, [r10 + rax*8]
+    xor rdi, rsi
+    and rdi, rdx
+    xor rsi, rdi
+     mov [r8 + rax*8], rsi
+     mov rdx, [rbx]
+     or rdx, [rbx + 16]
+     lea r11, [r15*8]
+     lea r11, [rbp + r11*2]
+     mov rsi, [r11 + rax*8]
+     mov rdi, [rbx + 56]
+     mov rdi, [rdi + rax*8]
+     xor rdi, rsi
+     and rdi, rdx
+     xor rsi, rdi
+     mov [r11 + rax*8], rsi
+     mov rdx, [rbx + 8]
+     or rdx, [rbx + 24]
+     lea r11, [r15*8]
+     lea r11, [rbp + r11*2]
+     lea rsi, [r15*8]
+     add r11, rsi
+     mov rsi, [r11 + rax*8]
+     mov rdi, [rbx + 64]
+     mov rdi, [rdi + rax*8]
+     xor rdi, rsi
+     and rdi, rdx
+     xor rsi, rdi
+     mov [r11 + rax*8], rsi
+     lea r8, [rbp + r15*8]
+    inc rax
+    jmp .Lio_select_loop
+.Lio_next:
+    dec QWORD PTR [rbx + 32]
+    jnz .Linvodd_iter
+
+    # Select the coefficient belonging to gcd 1 and report failure otherwise.
+    mov rdi, rbp
+    mov rsi, r14
+    mov rdx, r15
+    call ct_eq
+    mov [rbx + 24], rax
+    lea rsi, [rbp + r15*8]
+    mov rdi, rsi
+    mov rsi, r14
+    mov rdx, r15
+    call ct_eq
+    mov r10, rax
+    mov r9, [rbx + 24]
+    neg r9
+    neg r10
+    xor eax, eax
+.Lio_out:
+    cmp rax, r15
+    jae .Lio_out_done
+     mov rdi, [rbx + 56]
+     mov rsi, [rdi + rax*8]
+     mov rdi, [rbx + 64]
+     mov rdx, [rdi + rax*8]
+     and rsi, r9
+     and rdx, r10
+     or rsi, rdx
+     mov [r12 + rax*8], rsi
+    inc rax
+    jmp .Lio_out
+.Lio_out_done:
+    xor eax, eax
+     or r8, [rbx + 24]
+     cmp r8, 1
+    sete al
+    xor eax, 1
+    lea rdx, [r15*8]
+    lea rcx, [rdx*8]
+    add rcx, 72
     add rsp, rcx
     pop r15
     pop r14

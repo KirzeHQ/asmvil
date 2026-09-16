@@ -409,6 +409,8 @@ dependencies = [
  "hkdf",
  "hmac",
  "num-bigint",
+ "num-integer",
+ "num-traits",
  "poly1305",
  "sha2",
  "x25519-dalek",

@@ -20,3 +20,5 @@
 # ct_select(dst, a, b, limbs, bit): if bit then dst=b else dst=a, constant time.
 # bigint_mod_reduce(dst, input[2*limbs], modulus, limbs): input mod modulus.
 # bigint_mod_inv_prime(dst, a, prime, limbs): a^(prime-2) mod prime.
+# bigint_mod_inv_odd(dst, a, modulus, limbs): inverse modulo an odd modulus,
+# returns 0 on success and 1 when the inverse does not exist.

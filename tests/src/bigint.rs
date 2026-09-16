@@ -1,5 +1,7 @@
 use crate::{ffi::*, fixture::fixture};
-use num_bigint::BigUint;
+use num_bigint::{BigUint, ToBigInt};
+use num_integer::Integer;
+use num_traits::One;
 
 fn read_limbs(bytes: &[u8]) -> Vec<u64> {
     bytes
@@ -21,6 +23,34 @@ fn limbs(n: &BigUint, count: usize) -> Vec<u64> {
     b.chunks(8)
         .map(|x| u64::from_le_bytes(x.try_into().unwrap()))
         .collect()
+}
+
+fn mod_inverse(a: &BigUint, modulus: &BigUint) -> Option<BigUint> {
+    let modulus = modulus.to_bigint().unwrap();
+    let egcd = a.to_bigint().unwrap().extended_gcd(&modulus);
+    if !egcd.gcd.is_one() {
+        return None;
+    }
+    egcd.x.mod_floor(&modulus).to_biguint()
+}
+
+fn check_odd_inverse(a: &BigUint, modulus: &BigUint, count: usize) {
+    let a_limbs = limbs(a, count);
+    let modulus_limbs = limbs(modulus, count);
+    let mut out = vec![0u64; count];
+    let expected = mod_inverse(a, modulus);
+    let status = unsafe {
+        bigint_mod_inv_odd(
+            out.as_mut_ptr(),
+            a_limbs.as_ptr(),
+            modulus_limbs.as_ptr(),
+            count,
+        )
+    };
+    assert_eq!(status, u64::from(expected.is_none()), "a={a}, modulus={modulus}");
+    if let Some(expected) = expected {
+        assert_eq!(out, limbs(&expected, count), "a={a}, modulus={modulus}");
+    }
 }
 
 // BigUint supplies arithmetic expectations; constant-time return flags stay explicit.
@@ -75,37 +105,71 @@ fn bigint_mod_reduce_and_prime_inverse_match_biguint() {
     let mut inverse = [0u64; 2];
     unsafe {
         bigint_mod_reduce(reduced.as_mut_ptr(), input.as_ptr(), modulus.as_ptr(), 2);
+        eprintln!("bigint_mod_inv_prime: a={:?}, modulus={:?}", a, modulus);
         assert_eq!(
             bigint_mod_inv_prime(inverse.as_mut_ptr(), a.as_ptr(), modulus.as_ptr(), 2),
             0
         );
+        eprintln!("bigint_mod_inv_prime returned: {:?}", inverse);
     }
     assert_eq!(reduced.to_vec(), limbs(&(wide % &m), 2));
     assert_eq!(
         inverse.to_vec(),
         limbs(&number(&a).modpow(&(&m - 2u32), &m), 2)
     );
+
+    let wide_modulus = (BigUint::one() << 127) - BigUint::one();
+    let wide_input = &wide_modulus + BigUint::from(5u32);
+    let mut input = limbs(&wide_input, 4);
+    input[2..].fill(0);
+    let modulus: [u64; 2] = limbs(&wide_modulus, 2).try_into().unwrap();
+    unsafe {
+        bigint_mod_reduce(reduced.as_mut_ptr(), input.as_ptr(), modulus.as_ptr(), 2);
+    }
+    assert_eq!(reduced.to_vec(), limbs(&(wide_input % wide_modulus), 2));
 }
 
 #[test]
 fn bigint_mod_inv_odd_matches_biguint() {
-    let cases = [(3u64, 101u64), (17, 221), (37, 255), (64, 899), (123, 1001)];
-    for (a0, m0) in cases {
-        let a = [a0, 0];
-        let modulus = [m0, 0];
+    let wide_prime = (BigUint::one() << 127) - BigUint::one();
+    let factor = (BigUint::one() << 64) - BigUint::from(59u32);
+    let wide_composite: BigUint = &factor * ((BigUint::one() << 32usize) - BigUint::from(5u32));
+    let cases = [
+        (BigUint::from(3u32), BigUint::from(101u32)),
+        (BigUint::from(17u32), BigUint::from(221u32)),
+        (BigUint::from(37u32), BigUint::from(255u32)),
+        (BigUint::from(64u32), BigUint::from(899u32)),
+        (BigUint::from(123u32), BigUint::from(1001u32)),
+        (&wide_prime + BigUint::from(5u32), wide_prime),
+        (BigUint::from(65537u32), wide_composite.clone()),
+        (factor, wide_composite),
+    ];
+    for (a_big, modulus_big) in cases {
+        let a: [u64; 2] = limbs(&a_big, 2).try_into().unwrap();
+        let modulus: [u64; 2] = limbs(&modulus_big, 2).try_into().unwrap();
         let mut out = [0u64; 2];
-        let modulus_big = BigUint::from(m0);
-        let mut expected = None;
-        for x in 1..m0 {
-            if (BigUint::from(a0) * BigUint::from(x)) % &modulus_big == BigUint::from(1u32) {
-                expected = Some(BigUint::from(x));
-                break;
-            }
-        }
+        let expected = mod_inverse(&a_big, &modulus_big);
+        eprintln!("bigint_mod_inv_odd: a={a_big}, modulus={modulus_big}");
         let status = unsafe { bigint_mod_inv_odd(out.as_mut_ptr(), a.as_ptr(), modulus.as_ptr(), 2) };
+        eprintln!("bigint_mod_inv_odd returned: status={status}, output={out:?}");
         assert_eq!(status, u64::from(expected.is_none()));
         if let Some(expected) = expected {
             assert_eq!(out.to_vec(), limbs(&expected, 2));
         }
+    }
+
+    for (a, modulus) in [(3u64, 101u64), (17, 221), (64, 899), (123, 1001)] {
+        check_odd_inverse(&BigUint::from(a), &BigUint::from(modulus), 1);
+    }
+
+    let mut state = 0x9e37_79b9_7f4a_7c15_d1b5_4a32_d192_ed03u128;
+    for _ in 0..64 {
+        state ^= state << 13;
+        state ^= state >> 7;
+        state ^= state << 17;
+        let a = BigUint::from(state);
+        state = state.rotate_left(47) ^ 0xa5a5_a5a5_5a5a_5a5a_0123_4567_89ab_cdef;
+        let modulus = BigUint::from(state | 3);
+        check_odd_inverse(&a, &modulus, 2);
     }
 }

@@ -34,7 +34,12 @@ fn main() {
         let symbol = fields[0];
         let source = root.join("src").join(fields[3]).join(&arch).join(fields[4]).with_extension("asm");
         let present = source.exists()
-            && fs::read_to_string(&source).map(|text| text.contains(symbol)).unwrap_or(false);
+            && fs::read_to_string(&source)
+                .map(|text| {
+                    text.split(|c: char| !c.is_ascii_alphanumeric() && c != '_')
+                        .any(|token| token == symbol)
+                })
+                .unwrap_or(false);
         if !present {
             missing.push_str(&format!(
                 "#[unsafe(no_mangle)]\npub unsafe extern \"C\" fn {symbol}() -> u64 {{\n    eprintln!(\"FAIL {symbol}: Implementation missing for {arch}\");\n    0\n}}\n\n"

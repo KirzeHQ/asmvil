@@ -49,14 +49,14 @@ jobs:
 
       # Cache just install
       - name: Cache just install
-        uses: actions/cache@v3
+        uses: actions/cache@v6
         with:
           path: ~/.cargo/bin/just
           key: just-${{ runner.os }}
 
       # Cache cargo registry
       - name: Cache cargo registry
-        uses: actions/cache@v3
+        uses: actions/cache@v6
         with:
           path: ~/.cargo/registry
           key: cargo-registry-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}

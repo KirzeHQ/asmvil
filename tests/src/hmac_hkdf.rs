@@ -5,19 +5,48 @@ use sha2::{Sha256, Sha384, Sha512};
 
 fn test_vectors() -> std::collections::HashMap<&'static str, Vec<u8>> {
     let mut out = std::collections::HashMap::new();
-    for (key, len) in [("key1", 20), ("key2", 4), ("key3", 20), ("key4", 25), ("key6", 131), ("key7", 131),
-        ("msg1", 8), ("msg2", 28), ("msg3", 50), ("msg4", 50), ("msg6", 54), ("msg7", 152),
-        ("ikm1", 22), ("ikm2", 80), ("ikm3", 22), ("ikm512", 32), ("ikm384", 32),
-        ("salt1", 13), ("salt2", 16), ("salt512", 16), ("salt384", 16), ("salt3", 0),
-        ("info1", 10), ("info2", 8), ("info3", 8), ("info512", 8), ("info384", 8),
-        ("sec25_32", 32), ("sec25_48", 48), ("sec25_64", 64), ("lbl_exp", 9),
-        ("lbl_skey", 5), ("lbl_ctx", 3), ("lbl_der", 3), ("ctx0", 0), ("ctx24", 24),
-        ("ctx64", 64), ("ctx99_32", 32)] {
+    for (key, len) in [
+        ("key1", 20),
+        ("key2", 4),
+        ("key3", 20),
+        ("key4", 25),
+        ("key6", 131),
+        ("key7", 131),
+        ("msg1", 8),
+        ("msg2", 28),
+        ("msg3", 50),
+        ("msg4", 50),
+        ("msg6", 54),
+        ("msg7", 152),
+        ("ikm1", 8),
+        ("ikm2", 80),
+        ("ikm3", 22),
+        ("ikm512", 32),
+        ("ikm384", 32),
+        ("salt1", 20),
+        ("salt2", 16),
+        ("salt512", 16),
+        ("salt384", 16),
+        ("salt3", 0),
+        ("info1", 8),
+        ("info2", 8),
+        ("info3", 8),
+        ("info512", 8),
+        ("info384", 8),
+        ("sec25_32", 32),
+        ("sec25_48", 48),
+        ("sec25_64", 64),
+        ("lbl_exp", 9),
+        ("lbl_skey", 5),
+        ("lbl_ctx", 3),
+        ("lbl_der", 7),
+        ("ctx0", 0),
+        ("ctx24", 24),
+        ("ctx64", 64),
+        ("ctx99_32", 32),
+    ] {
         out.insert(key, (0..len).map(|i| i as u8).collect());
     }
-    out.insert("ikm1", vec![0x0b; 22]);
-    out.insert("salt1", (0u8..=12).collect());
-    out.insert("info1", (0xf0u8..=0xf9).collect());
     out
 }
 
@@ -104,6 +133,22 @@ fn hmac_all_vectors() {
 fn hkdf_case(hash: usize, ikm: &[u8], salt: &[u8], info: &[u8], okm_len: usize) {
     let mut p = [0; 64];
     let mut o = [0; 128];
+    let mut direct256 = [0u8; 32];
+    if hash == 32 {
+        let mut expected = Hmac::<Sha256>::new_from_slice(salt).unwrap();
+        expected.update(ikm);
+        let expected = expected.finalize().into_bytes();
+        unsafe {
+            hmac_sha256(
+                salt.as_ptr(),
+                salt.len(),
+                ikm.as_ptr(),
+                ikm.len(),
+                direct256.as_mut_ptr(),
+            )
+        };
+        eq(&direct256, &expected);
+    }
     unsafe {
         match hash {
             32 => {
@@ -161,10 +206,7 @@ fn hkdf_case(hash: usize, ikm: &[u8], salt: &[u8], info: &[u8], okm_len: usize) 
         32 => {
             let h = Hkdf::<Sha256>::new(Some(salt), ikm);
             h.expand(info, &mut expected).unwrap();
-            eq(
-                &p[..hash],
-                Hkdf::<Sha256>::extract(Some(salt), ikm).0.as_slice(),
-            );
+            eq(&p[..hash], &direct256);
         }
         48 => {
             let h = Hkdf::<Sha384>::new(Some(salt), ikm);
@@ -189,9 +231,18 @@ fn hkdf_case(hash: usize, ikm: &[u8], salt: &[u8], info: &[u8], okm_len: usize) 
 #[test]
 fn hkdf_extract_expand_tls_label_and_derive_secret() {
     let f = test_vectors();
-    for (h, ik, s, inf, okm_len) in [(32, "ikm1", "salt1", "info1", 42)] {
+    for (h, ik, s, inf, okm_len) in [
+        (32, "ikm1", "salt1", "info1", 42),
+        (32, "ikm2", "salt2", "info2", 82),
+        (32, "ikm3", "salt3", "info3", 42),
+        (64, "ikm512", "salt512", "info512", 96),
+        (64, "ikm512", "salt3", "info512", 96),
+        (48, "ikm384", "salt384", "info384", 72),
+        (48, "ikm384", "salt3", "info384", 72),
+    ] {
         let ikmlen = match ik {
-            "ikm1" | "ikm3" => 22,
+            "ikm1" => 8,
+            "ikm3" => 22,
             "ikm2" => 80,
             _ => 32,
         };

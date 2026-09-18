@@ -20,7 +20,10 @@ fn main() {
     };
     let crypto = root.join("src/crypto").join(&arch);
     let testing_dir = root.join("src/testing").join(&arch);
-    println!("cargo:rerun-if-changed={}", root.join("src/testing/tests.inc").display());
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join("src/testing/tests.inc").display()
+    );
     let manifest = fs::read_to_string(root.join("src/testing/tests.inc")).unwrap();
     let mut missing = String::new();
     for line in manifest.lines() {
@@ -32,7 +35,12 @@ fn main() {
             continue;
         }
         let symbol = fields[0];
-        let source = root.join("src").join(fields[3]).join(&arch).join(fields[4]).with_extension("asm");
+        let source = root
+            .join("src")
+            .join(fields[3])
+            .join(&arch)
+            .join(fields[4])
+            .with_extension("asm");
         let present = source.exists()
             && fs::read_to_string(&source)
                 .map(|text| {

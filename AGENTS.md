@@ -16,7 +16,7 @@ just build         # build for the native host arch (detected via uname -m)
 just build-all     # build for both x86_64 and aarch64
 just build-x86_64  # build only x86-64
 just build-aarch64 # build only aarch64
-just test          # assemble+link+run tests for the native host arch
+just test          # run the Rust test crate against native assembly objects
 just clean         # remove build/
 just run           # build and run the native binary
 ```
@@ -44,8 +44,8 @@ Note: the true program entry point (`_start`) is arch-specific because it uses
 
 A single shared source file keeps cross-platform logic in one place, with
 arch-specific helpers split out where the ABI or syscalls genuinely differ.
-Includes and tests are arch-specific and mirrored, never assume the same
-file assembles for both architectures.
+Includes and assembly implementations are architecture-specific and mirrored.
+The Rust test crate runs against the implementation for the target architecture.
 
 ```
 src/main.asm          # shared cross-platform logic (main), register-agnostic
@@ -53,15 +53,15 @@ src/x86_64/*.asm      # x86-64 start.asm: _start + sys_exit (Intel, syscall)
 src/aarch64/*.asm     # aarch64 start.asm: _start + sys_exit (ARM, svc)
 include/x86_64/*.inc  # x86-64 includes (common.inc: syscall constants)
 include/aarch64/*.inc # aarch64 includes (common.inc: syscall constants)
-tests/x86_64/*.asm    # x86-64 tests
-tests/aarch64/*.asm   # aarch64 tests
+tests/src/*.rs        # Rust tests and typed assembly FFI declarations
+tests/build.rs        # native assembly build and test registry linkage
 build/                # generated, gitignored
 ```
 
 The `justfile` passes the matching include dir via `as -I include/<arch>` so
-`.include "common.inc"` resolves to the correct arch in both `src/` and
-`tests/` files. Each build assembles the shared `src/main.asm` together with
-the matching `src/<arch>/start.asm` and links both objects.
+`.include "common.inc"` resolves to the correct architecture. Each application
+build assembles the shared `src/main.asm` together with the matching
+`src/<arch>/start.asm` and links both objects.
 
 ## Architecture notes
 
@@ -91,10 +91,11 @@ GAS quirks when writing x86-64 Intel-syntax code:
 
 ## Testing
 
-Every assembly change must add/keep a matching test under `tests/<arch>/`.
-A test is a standalone `.asm` with a `_start` that exits 0 on success.
-`just test` assembles, links, and runs each one, and fails if any exit non-zero.
-Tests live in arch-specific dirs and are run natively per-arch.
+Every assembly change must add or update a matching Rust test under `tests/src/`.
+Tests call registered assembly functions through typed FFI and compare results
+against independent Rust implementations where available. Test inputs belong
+in the Rust module that uses them. `just test` runs the crate natively, and
+missing architecture implementations fail with an explicit message.
 
 ## CI
 

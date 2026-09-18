@@ -7,7 +7,9 @@ fn test_vectors() -> std::collections::HashMap<&'static str, Vec<u8>> {
         ("msg_448", vec![0x5a; 56]),
         ("msg_100", vec![0xa5; 100]),
         ("msg_200", vec![0x3c; 200]),
-    ].into_iter().collect()
+    ]
+    .into_iter()
+    .collect()
 }
 
 // Assembly processes the input; sha2 supplies the independent expected digest.

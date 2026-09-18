@@ -35,9 +35,10 @@
     mov r15, r8
     test r15, r15
     jz 9f
-    # frame = align16(3 * L + infolen + 17): T, msg, mac, counter, tlen
-    lea rax, [r14 + 3*\L + 17]
+    # Keep the call-site stack aligned after six saved registers.
+    lea rax, [r14 + 3*\L + 24]
     and rax, -16
+    add rax, 8
     sub rsp, rax
     mov rbp, rsp
     mov qword ptr [rbp + r14 + 3*\L + 9], 0
@@ -87,8 +88,9 @@
     test r15, r15
     jnz 2b
 
-    lea rax, [r14 + 3*\L + 17]
+    lea rax, [r14 + 3*\L + 24]
     and rax, -16
+    add rax, 8
     add rsp, rax
 9:
     pop rbp

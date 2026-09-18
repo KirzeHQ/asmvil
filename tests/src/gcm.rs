@@ -9,8 +9,15 @@ use aes_gcm::{
 
 fn test_vectors() -> std::collections::HashMap<&'static str, Vec<u8>> {
     let mut out = std::collections::HashMap::new();
-    for (key, len) in [("key0", 16), ("iv0", 12), ("key3", 16), ("iv3", 12),
-        ("aad17", 17), ("pt3", 64), ("zero_pt", 160)] {
+    for (key, len) in [
+        ("key0", 16),
+        ("iv0", 12),
+        ("key3", 16),
+        ("iv3", 12),
+        ("aad17", 17),
+        ("pt3", 64),
+        ("zero_pt", 160),
+    ] {
         out.insert(key, (0..len).map(|i| i as u8).collect());
     }
     out

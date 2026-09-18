@@ -41,7 +41,11 @@ fn check_odd_inverse(a: &BigUint, modulus: &BigUint, count: usize) {
             count,
         )
     };
-    assert_eq!(status, u64::from(expected.is_none()), "a={a}, modulus={modulus}");
+    assert_eq!(
+        status,
+        u64::from(expected.is_none()),
+        "a={a}, modulus={modulus}"
+    );
     if let Some(expected) = expected {
         assert_eq!(out, limbs(&expected, count), "a={a}, modulus={modulus}");
     }
@@ -143,7 +147,8 @@ fn bigint_mod_inv_odd_matches_biguint() {
         let mut out = [0u64; 2];
         let expected = mod_inverse(&a_big, &modulus_big);
         eprintln!("bigint_mod_inv_odd: a={a_big}, modulus={modulus_big}");
-        let status = unsafe { bigint_mod_inv_odd(out.as_mut_ptr(), a.as_ptr(), modulus.as_ptr(), 2) };
+        let status =
+            unsafe { bigint_mod_inv_odd(out.as_mut_ptr(), a.as_ptr(), modulus.as_ptr(), 2) };
         eprintln!("bigint_mod_inv_odd returned: status={status}, output={out:?}");
         assert_eq!(status, u64::from(expected.is_none()));
         if let Some(expected) = expected {

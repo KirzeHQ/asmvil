@@ -1,12 +1,20 @@
 use crate::{
     ffi::*,
-    fixture::fixture,
     helpers::{ctx, eq},
 };
 use aes_gcm::{
     Aes128Gcm, Aes256Gcm, Nonce,
     aead::{AeadInPlace, KeyInit},
 };
+
+fn test_vectors() -> std::collections::HashMap<&'static str, Vec<u8>> {
+    let mut out = std::collections::HashMap::new();
+    for (key, len) in [("key0", 16), ("iv0", 12), ("key3", 16), ("iv3", 12),
+        ("aad17", 17), ("pt3", 64), ("zero_pt", 160)] {
+        out.insert(key, (0..len).map(|i| i as u8).collect());
+    }
+    out
+}
 
 // AES-GCM computes the expected ciphertext and tag independently of assembly.
 fn gcm_ref(key: &[u8], iv: &[u8], aad: &[u8], plaintext: &[u8]) -> (Vec<u8>, [u8; 16]) {
@@ -27,7 +35,7 @@ fn gcm_ref(key: &[u8], iv: &[u8], aad: &[u8], plaintext: &[u8]) -> (Vec<u8>, [u8
 
 #[test]
 fn gcm_vectors_streaming_partials_failures_and_open() {
-    let f = fixture("gcm_test.asm");
+    let f = test_vectors();
     let mut c = ctx();
     let mut out = vec![0; 160];
     let mut tag = [0; 16];

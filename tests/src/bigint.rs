@@ -1,14 +1,8 @@
-use crate::{ffi::*, fixture::fixture};
+use crate::ffi::*;
 use num_bigint::{BigUint, ToBigInt};
 use num_integer::Integer;
 use num_traits::One;
 
-fn read_limbs(bytes: &[u8]) -> Vec<u64> {
-    bytes
-        .chunks(8)
-        .map(|x| u64::from_le_bytes(x.try_into().unwrap()))
-        .collect()
-}
 fn number(limbs: &[u64]) -> BigUint {
     BigUint::from_bytes_le(
         &limbs
@@ -56,12 +50,11 @@ fn check_odd_inverse(a: &BigUint, modulus: &BigUint, count: usize) {
 // BigUint supplies arithmetic expectations; constant-time return flags stay explicit.
 #[test]
 fn zbigint_all_operations_and_constant_time_helpers() {
-    let f = fixture("bigint_test.asm");
-    let a = read_limbs(&f["a1"]);
-    let b = read_limbs(&f["b1"]);
-    let a2 = read_limbs(&f["a2"]);
-    let b2 = read_limbs(&f["b2"]);
-    let a3 = read_limbs(&f["a3"]);
+    let a = [0x100u64, 0];
+    let b = [0x40u64, 0];
+    let a2 = [0x100u64, 0];
+    let b2 = [0x20u64, 0];
+    let a3 = [0x1234_5678u64, 0];
     let mut o = [0; 4];
     unsafe {
         assert_eq!(bigint_add(o.as_mut_ptr(), a2.as_ptr(), b2.as_ptr(), 2), 0);

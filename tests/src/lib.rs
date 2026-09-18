@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod ffi;
 #[cfg(test)]
-mod fixture;
 #[cfg(test)]
 mod helpers;
 

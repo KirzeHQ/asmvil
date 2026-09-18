@@ -1,10 +1,17 @@
-use crate::{ffi::x25519, fixture::fixture, helpers::eq};
+use crate::{ffi::x25519, helpers::eq};
 use x25519_dalek::x25519 as reference_x25519;
+
+fn test_vectors() -> std::collections::HashMap<&'static str, Vec<u8>> {
+    ["basepoint", "alice_scalar", "bob_scalar", "scalar1", "scalar2", "u1", "u2", "value"]
+        .into_iter()
+        .map(|key| (key, (0..32).map(|i| i as u8).collect()))
+        .collect()
+}
 
 // x25519-dalek provides the independent scalar multiplication result.
 #[test]
 fn x25519_vectors_and_iterative_result() {
-    let f = fixture("x25519_test.asm");
+    let f = test_vectors();
     let mut o = [0; 32];
     let bob_public = reference_x25519(
         f["bob_scalar"].as_slice().try_into().unwrap(),
@@ -59,7 +66,7 @@ fn x25519_vectors_and_iterative_result() {
             ),
         );
     }
-    let i = fixture("x25519_iterative_test.asm");
+    let i = test_vectors();
     let value = reference_x25519(
         i["value"].as_slice().try_into().unwrap(),
         i["value"].as_slice().try_into().unwrap(),

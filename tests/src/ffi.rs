@@ -122,6 +122,21 @@ unsafe extern "C" {
     ) -> u64;
     #[cfg(target_arch = "x86_64")]
     pub(crate) fn bcrypt_generate_salt(o: *mut u8) -> u64;
+    #[cfg(target_arch = "x86_64")]
+    pub(crate) fn bcrypt_encode(
+        s: *const u8,
+        c: *const u8,
+        cost: u32,
+        o: *mut u8,
+    ) -> u64;
+    #[cfg(target_arch = "x86_64")]
+    pub(crate) fn bcrypt_decode(
+        h: *const u8,
+        hl: usize,
+        s: *mut u8,
+        cost: *mut u32,
+        c: *mut u8,
+    ) -> u64;
 
     #[cfg(target_arch = "x86_64")]
     pub(crate) fn web_socket(domain: u64, kind: u64, protocol: u64) -> i64;

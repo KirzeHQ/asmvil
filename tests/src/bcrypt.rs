@@ -1,4 +1,7 @@
-use crate::{ffi::{bcrypt_generate_salt, bcrypt_hash, bcrypt_verify}, helpers::eq};
+use crate::{
+    ffi::{bcrypt_decode, bcrypt_encode, bcrypt_generate_salt, bcrypt_hash, bcrypt_verify},
+    helpers::eq,
+};
 
 #[test]
 fn bcrypt_known_vector() {
@@ -108,4 +111,58 @@ fn bcrypt_known_vector() {
     let mut generated = [0u8; 16];
     assert_eq!(unsafe { bcrypt_generate_salt(generated.as_mut_ptr()) }, 0);
     assert_ne!(generated, [0u8; 16]);
+
+    let mut encoded = [0u8; 61];
+    assert_eq!(unsafe {
+        bcrypt_hash(
+            password.as_ptr(),
+            password.len(),
+            salt.as_ptr(),
+            salt.len(),
+            4,
+            output.as_mut_ptr(),
+        )
+    }, 0);
+    assert_eq!(unsafe {
+        bcrypt_encode(
+            salt.as_ptr(),
+            output.as_ptr(),
+            4,
+            encoded.as_mut_ptr(),
+        )
+    }, 0);
+    assert_eq!(
+        &encoded,
+        b"$2b$04$0123456789abcdef......Mp5fbtg6tx0UCo4bVLZC0s9uhEeR0jy\0",
+    );
+    let mut decoded_salt = [0u8; 16];
+    let mut decoded_cost = 0;
+    let mut decoded_checksum = [0u8; 23];
+    assert_eq!(unsafe {
+        bcrypt_decode(
+            encoded.as_ptr(),
+            60,
+            decoded_salt.as_mut_ptr(),
+            &mut decoded_cost,
+            decoded_checksum.as_mut_ptr(),
+        )
+    }, 0);
+    assert_eq!(decoded_salt, salt);
+    assert_eq!(decoded_cost, 4);
+    eq(&decoded_checksum, &output[..23]);
+
+    for invalid in [
+        b"$2a$04$0123456789abcdef......Mp5fbtg6tx0UCo4bVLZC0s9uhEeR0jy",
+        b"$2b$17$0123456789abcdef......Mp5fbtg6tx0UCo4bVLZC0s9uhEeR0jy",
+    ] {
+        assert_eq!(unsafe {
+            bcrypt_decode(
+                invalid.as_ptr(),
+                invalid.len(),
+                decoded_salt.as_mut_ptr(),
+                &mut decoded_cost,
+                decoded_checksum.as_mut_ptr(),
+            )
+        }, 1);
+    }
 }

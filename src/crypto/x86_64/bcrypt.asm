@@ -408,5 +408,309 @@ bcrypt_generate_salt:
     pop rbx
     ret
 
+.type bcrypt_b64_value, @function
+bcrypt_b64_value:
+    lea rsi, [rip + bcrypt_alphabet]
+    xor ecx, ecx
+1:
+    cmp cl, 64
+    jae 2f
+    cmp dil, byte ptr [rsi + rcx]
+    je 3f
+    inc ecx
+    jmp 1b
+2:
+    mov eax, -1
+    ret
+3:
+    mov eax, ecx
+    ret
+
+.type bcrypt_b64_encode, @function
+bcrypt_b64_encode:
+    push r12
+    push r13
+    push r14
+    push r15
+    mov r12, rdi
+    mov r13, rsi
+    mov r14, rdx
+    mov r15, rcx
+    lea rsi, [rip + bcrypt_alphabet]
+    xor edx, edx
+1:
+    cmp rdx, r13
+    jae 5f
+    movzx eax, byte ptr [r12 + rdx]
+    mov ecx, eax
+    shr eax, 2
+    movzx eax, byte ptr [rsi + rax]
+    mov byte ptr [r15], al
+    mov eax, ecx
+    and eax, 3
+    shl eax, 4
+    inc rdx
+    cmp rdx, r13
+    jae 4f
+    movzx ecx, byte ptr [r12 + rdx]
+    mov eax, eax
+    mov edi, ecx
+    shr edi, 4
+    or eax, edi
+    movzx eax, byte ptr [rsi + rax]
+    mov byte ptr [r15 + 1], al
+    mov eax, ecx
+    and eax, 15
+    shl eax, 2
+    inc rdx
+    cmp rdx, r13
+    jae 3f
+    movzx ecx, byte ptr [r12 + rdx]
+    mov edi, ecx
+    shr edi, 6
+    or eax, edi
+    movzx eax, byte ptr [rsi + rax]
+    mov byte ptr [r15 + 2], al
+    mov eax, ecx
+    and eax, 63
+    movzx eax, byte ptr [rsi + rax]
+    mov byte ptr [r15 + 3], al
+    add r15, 4
+    inc rdx
+    jmp 1b
+3:
+    movzx eax, byte ptr [rsi + rax]
+    mov byte ptr [r15 + 2], al
+    add r15, 3
+    jmp 1b
+4:
+    movzx eax, byte ptr [rsi + rax]
+    mov byte ptr [r15 + 1], al
+    add r15, 2
+    jmp 1b
+5:
+    mov rax, r15
+    sub rax, rcx
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    ret
+
+.type bcrypt_b64_decode, @function
+bcrypt_b64_decode:
+    push r12
+    push r13
+    push r14
+    push r15
+    sub rsp, 24
+    mov r12, rdi
+    mov r13, rsi
+    mov r14, rdx
+    mov r15, rcx
+    xor edx, edx
+1:
+    cmp r13, 4
+    jb 4f
+    movzx edi, byte ptr [r12]
+    call bcrypt_b64_value
+    test eax, eax
+    js 6f
+    mov dword ptr [rsp], eax
+    movzx edi, byte ptr [r12 + 1]
+    call bcrypt_b64_value
+    test eax, eax
+    js 6f
+    mov dword ptr [rsp + 4], eax
+    movzx edi, byte ptr [r12 + 2]
+    call bcrypt_b64_value
+    test eax, eax
+    js 6f
+    mov dword ptr [rsp + 8], eax
+    movzx edi, byte ptr [r12 + 3]
+    call bcrypt_b64_value
+    test eax, eax
+    js 6f
+    mov dword ptr [rsp + 12], eax
+    mov eax, dword ptr [rsp]
+    shl eax, 2
+    mov ecx, dword ptr [rsp + 4]
+    shr ecx, 4
+    or eax, ecx
+    mov byte ptr [r14], al
+    mov eax, dword ptr [rsp + 4]
+    shl eax, 4
+    mov ecx, dword ptr [rsp + 8]
+    shr ecx, 2
+    or eax, ecx
+    mov byte ptr [r14 + 1], al
+    mov eax, dword ptr [rsp + 8]
+    shl eax, 6
+    or eax, dword ptr [rsp + 12]
+    mov byte ptr [r14 + 2], al
+    add r12, 4
+    sub r13, 4
+    add r14, 3
+    sub r15, 3
+    jmp 1b
+4:
+    cmp r13, 2
+    jb 6f
+    movzx edi, byte ptr [r12]
+    call bcrypt_b64_value
+    test eax, eax
+    js 6f
+    mov dword ptr [rsp], eax
+    movzx edi, byte ptr [r12 + 1]
+    call bcrypt_b64_value
+    test eax, eax
+    js 6f
+    mov dword ptr [rsp + 4], eax
+    mov eax, dword ptr [rsp]
+    shl eax, 2
+    mov ecx, dword ptr [rsp + 4]
+    shr ecx, 4
+    or eax, ecx
+    mov byte ptr [r14], al
+    cmp r13, 2
+    je 5f
+    movzx edi, byte ptr [r12 + 2]
+    call bcrypt_b64_value
+    test eax, eax
+    js 6f
+    mov ecx, dword ptr [rsp + 4]
+    shl ecx, 4
+    shr eax, 2
+    or eax, ecx
+    mov byte ptr [r14 + 1], al
+5:
+    xor eax, eax
+    add rsp, 24
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    ret
+6:
+    mov eax, 1
+    add rsp, 24
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    ret
+
+.global bcrypt_encode
+bcrypt_encode:
+    cmp edx, BCRYPT_MIN_COST
+    jb .Lbcrypt_encode_invalid
+    cmp edx, BCRYPT_APP_MAX_COST
+    ja .Lbcrypt_encode_invalid
+    push rbx
+    push r12
+    push r13
+    push r14
+    mov rbx, rdi
+    mov r12, rsi
+    mov r13, rcx
+    mov r14d, edx
+    mov dword ptr [r13], 0x24623224
+    mov eax, r14d
+    xor edx, edx
+    mov ecx, 10
+    div ecx
+    add eax, '0'
+    mov byte ptr [r13 + 4], al
+    add edx, '0'
+    mov byte ptr [r13 + 5], dl
+    mov byte ptr [r13 + 6], '$'
+    mov rdi, rbx
+    mov esi, 16
+    lea rdx, [r13 + 7]
+    mov rcx, rdx
+    call bcrypt_b64_encode
+    mov rdi, r12
+    mov esi, 23
+    lea rdx, [r13 + 29]
+    mov rcx, rdx
+    call bcrypt_b64_encode
+    mov byte ptr [r13 + 60], 0
+    xor eax, eax
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    ret
+.Lbcrypt_encode_invalid:
+    mov eax, 1
+    ret
+
+.global bcrypt_decode
+bcrypt_decode:
+    cmp rsi, 60
+    jne .Lbcrypt_decode_invalid
+    cmp byte ptr [rdi], '$'
+    jne .Lbcrypt_decode_invalid
+    cmp byte ptr [rdi + 1], '2'
+    jne .Lbcrypt_decode_invalid
+    cmp byte ptr [rdi + 2], 'b'
+    jne .Lbcrypt_decode_invalid
+    cmp byte ptr [rdi + 3], '$'
+    jne .Lbcrypt_decode_invalid
+    push rbx
+    push r12
+    push r13
+    push r14
+    sub rsp, 8
+    mov rbx, rdi
+    mov r12, rdx
+    mov r13, rcx
+    mov r14, r8
+    movzx eax, byte ptr [rbx + 4]
+    sub eax, '0'
+    cmp eax, 9
+    ja .Lbcrypt_decode_invalid_pop
+    imul eax, 10
+    movzx ecx, byte ptr [rbx + 5]
+    sub ecx, '0'
+    cmp ecx, 9
+    ja .Lbcrypt_decode_invalid_pop
+    add eax, ecx
+    cmp eax, BCRYPT_MIN_COST
+    jb .Lbcrypt_decode_invalid_pop
+    cmp eax, BCRYPT_APP_MAX_COST
+    ja .Lbcrypt_decode_invalid_pop
+    mov dword ptr [r13], eax
+    lea rdi, [rbx + 7]
+    mov esi, 22
+    mov rdx, r12
+    mov ecx, 16
+    call bcrypt_b64_decode
+    test eax, eax
+    jnz .Lbcrypt_decode_invalid_pop
+    lea rdi, [rbx + 29]
+    mov esi, 31
+    mov rdx, r14
+    mov ecx, 23
+    call bcrypt_b64_decode
+    test eax, eax
+    jnz .Lbcrypt_decode_invalid_pop
+    xor eax, eax
+    jmp .Lbcrypt_decode_done
+.Lbcrypt_decode_invalid_pop:
+    mov eax, 1
+.Lbcrypt_decode_done:
+    add rsp, 8
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    ret
+.Lbcrypt_decode_invalid:
+    mov eax, 1
+    ret
+
 .section .rodata
 .include "crypto/blowfish_constants.inc"
+bcrypt_alphabet:
+    .ascii "./ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"

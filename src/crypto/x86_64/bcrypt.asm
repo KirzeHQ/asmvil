@@ -8,6 +8,13 @@
 .equ BCRYPT_MIN_COST, 4
 .equ BCRYPT_MAX_COST, 31
 .equ BCRYPT_APP_MAX_COST, 16
+.equ BCRYPT_MAX_PASSWORD, 72
+.equ BCRYPT_STACK, 4336
+.equ BCRYPT_SALT, 4176
+.equ BCRYPT_KEY, 4192
+.equ BCRYPT_KEY_PTR, 4280
+.equ BCRYPT_KEY_LEN, 4288
+.equ BCRYPT_ROUNDS, 4276
 
 .section .text
 
@@ -163,52 +170,66 @@ bcrypt_hash:
     ja .Lbcrypt_hash_invalid
     cmp ecx, BCRYPT_APP_MAX_COST
     ja .Lbcrypt_hash_invalid
+    cmp rsi, BCRYPT_MAX_PASSWORD
+    ja .Lbcrypt_password_invalid
     push rbx
     push r12
     push r13
     push r14
     push r15
     push rbp
-    sub rsp, 4248
+    sub rsp, BCRYPT_STACK
     mov rbp, rsp
     mov rbx, rdi
     mov r12, rsi
     mov r13, rdx
     mov r14, rcx
     mov r15, r8
-    mov qword ptr [rbp + 4224], rbx
+    lea rdi, [rbp + BCRYPT_KEY]
+    mov rcx, r12
+    mov rsi, rbx
+    rep movsb
+    mov byte ptr [rbp + BCRYPT_KEY + r12], 0
+    lea rax, [rbp + BCRYPT_KEY]
+    mov qword ptr [rbp + BCRYPT_KEY_PTR], rax
+    lea eax, [r12 + 1]
+    cmp eax, BCRYPT_MAX_PASSWORD
+    jbe 6f
+    mov eax, BCRYPT_MAX_PASSWORD
+6:
+    mov dword ptr [rbp + BCRYPT_KEY_LEN], eax
 
     lea rsi, [rip + bcrypt_initial]
     mov rdi, rbp
     mov ecx, 1042
     rep movsd
-    lea rdi, [rbp + BF_STATE]
+    lea rdi, [rbp + BCRYPT_SALT]
     xor eax, eax
     mov ecx, 4
     rep stosd
 
     mov rdi, rbp
     mov rsi, r13
-    mov rdx, rbx
-    mov rcx, r12
+    mov rdx, qword ptr [rbp + BCRYPT_KEY_PTR]
+    mov ecx, dword ptr [rbp + BCRYPT_KEY_LEN]
     call bcrypt_expand
 
     mov eax, 1
     mov ecx, r14d
     shl eax, cl
-    mov dword ptr [rbp + 4220], eax
+    mov dword ptr [rbp + BCRYPT_ROUNDS], eax
 1:
     lea rdi, [rbp]
-    lea rsi, [rbp + BF_STATE]
-    mov rdx, qword ptr [rbp + 4224]
-    mov rcx, r12
+    lea rsi, [rbp + BCRYPT_SALT]
+    mov rdx, qword ptr [rbp + BCRYPT_KEY_PTR]
+    mov ecx, dword ptr [rbp + BCRYPT_KEY_LEN]
     call bcrypt_expand
     mov rdi, rbp
     mov rsi, r13
-    mov rdx, qword ptr [rbp + 4224]
-    mov rcx, r12
+    mov rdx, qword ptr [rbp + BCRYPT_KEY_PTR]
+    mov ecx, dword ptr [rbp + BCRYPT_KEY_LEN]
     call bcrypt_expand
-    dec dword ptr [rbp + 4220]
+    dec dword ptr [rbp + BCRYPT_ROUNDS]
     jnz 1b
 
     mov r12, rbp
@@ -256,7 +277,7 @@ bcrypt_hash:
     mov rdi, r15
     mov ecx, 6
     rep movsd
-    add rsp, 4248
+    add rsp, BCRYPT_STACK
     pop rbp
     pop r15
     pop r14
@@ -268,6 +289,10 @@ bcrypt_hash:
 
 .Lbcrypt_hash_invalid:
     mov eax, 1
+    ret
+
+.Lbcrypt_password_invalid:
+    mov eax, 2
     ret
 
 .global bcrypt_verify
@@ -285,6 +310,10 @@ bcrypt_verify:
     mov r13, rdx
     mov r14, rcx
     mov r15, r8
+    mov rdi, rbx
+    mov rsi, r12
+    mov rdx, r13
+    mov rcx, r14
     lea r8, [rbp + 8]
     call bcrypt_hash
     test eax, eax

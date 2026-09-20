@@ -2,7 +2,7 @@ use crate::{ffi::{bcrypt_hash, bcrypt_verify}, helpers::eq};
 
 #[test]
 fn bcrypt_known_vector() {
-    let password = b"password\0";
+    let password = b"password";
     let salt = [
         0xdb, 0x7e, 0x39, 0xeb, 0xbf, 0x3d, 0xfb, 0xf7,
         0x1d, 0x79, 0xf8, 0x21, 0, 0, 0, 0, 0,
@@ -60,4 +60,27 @@ fn bcrypt_known_vector() {
         assert_eq!(status, 1, "cost {cost} should be rejected");
         assert_eq!(output, [0xa5; 24]);
     }
+
+    let password_72 = [0x5a; 72];
+    assert_eq!(unsafe {
+        bcrypt_hash(
+            password_72.as_ptr(),
+            password_72.len(),
+            salt.as_ptr(),
+            4,
+            output.as_mut_ptr(),
+        )
+    }, 0);
+    let password_73 = [0x5a; 73];
+    output.fill(0xa5);
+    assert_eq!(unsafe {
+        bcrypt_hash(
+            password_73.as_ptr(),
+            password_73.len(),
+            salt.as_ptr(),
+            4,
+            output.as_mut_ptr(),
+        )
+    }, 2);
+    assert_eq!(output, [0xa5; 24]);
 }

@@ -281,6 +281,10 @@ bcrypt_hash:
     mov rdi, r15
     mov ecx, 6
     rep movsd
+    xor eax, eax
+    mov ecx, BCRYPT_STACK / 8
+    mov rdi, rbp
+    rep stosq
     add rsp, BCRYPT_STACK
     pop rbp
     pop r15
@@ -351,6 +355,12 @@ bcrypt_verify:
     test rax, rax
     sete al
     movzx eax, al
+    mov r10d, eax
+    xor eax, eax
+    lea rdi, [rbp]
+    mov ecx, 5
+    rep stosq
+    mov eax, r10d
     add rsp, 40
     pop rbp
     pop r15
@@ -362,6 +372,12 @@ bcrypt_verify:
 
 .Lbcrypt_verify_invalid:
     xor eax, eax
+    mov r10d, eax
+    xor eax, eax
+    lea rdi, [rbp]
+    mov ecx, 5
+    rep stosq
+    mov eax, r10d
     add rsp, 40
     pop rbp
     pop r15

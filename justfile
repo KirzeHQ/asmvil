@@ -37,7 +37,8 @@ build-x86_64:
     mkdir -p "$out"
     as --64 -I include/x86_64 -o "$out/{{name}}.o" {{src_dir}}/main.asm
     as --64 -I include/x86_64 -o "$out/start.o" {{src_dir}}/x86_64/start.asm
-    ld -m elf_x86_64 -z noexecstack -o "$out/{{name}}" "$out/{{name}}.o" "$out/start.o"
+    as --64 -I include/x86_64 -o "$out/socket.o" {{src_dir}}/webserver/x86_64/socket.asm
+    ld -m elf_x86_64 -z noexecstack -o "$out/{{name}}" "$out/{{name}}.o" "$out/start.o" "$out/socket.o"
     echo "Built: $out/{{name}}"
 
 build-aarch64:

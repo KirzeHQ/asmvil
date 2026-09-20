@@ -102,4 +102,15 @@ unsafe extern "C" {
     pub(crate) fn aead_open(c: *mut u8, i: *const u8, o: *mut u8, n: usize) -> u8;
     pub(crate) fn aead_final(c: *mut u8, t: *mut u8) -> u8;
     pub(crate) fn aead_verify(c: *mut u8, t: *const u8) -> u64;
+
+    #[cfg(target_arch = "x86_64")]
+    pub(crate) fn web_socket(domain: u64, kind: u64, protocol: u64) -> i64;
+    #[cfg(target_arch = "x86_64")]
+    pub(crate) fn web_bind(fd: i64, address: *const u8, length: u64) -> i64;
+    #[cfg(target_arch = "x86_64")]
+    pub(crate) fn web_listen(fd: i64, backlog: u64) -> i64;
+    #[cfg(target_arch = "x86_64")]
+    pub(crate) fn web_accept(fd: i64, address: *mut u8, length: *mut u32) -> i64;
+    #[cfg(target_arch = "x86_64")]
+    pub(crate) fn web_close(fd: i64) -> i64;
 }

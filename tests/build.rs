@@ -19,6 +19,7 @@ fn main() {
         other => panic!("unsupported target architecture: {other}"),
     };
     let crypto = root.join("src/crypto").join(&arch);
+    let webserver = root.join("src/webserver").join(&arch);
     let testing_dir = root.join("src/testing").join(&arch);
     println!(
         "cargo:rerun-if-changed={}",
@@ -71,6 +72,24 @@ fn main() {
                 .arg("ASMVIL_TESTING=1")
                 .arg("-I")
                 .arg(root.join("src"))
+                .arg("-I")
+                .arg(root.join("include").join(&arch))
+                .arg("-o")
+                .arg(&object)
+                .arg(&source));
+            println!("cargo:rerun-if-changed={}", source.display());
+            objects.push(object);
+        }
+    }
+    if webserver.is_dir() {
+        for entry in fs::read_dir(&webserver).unwrap() {
+            let source = entry.unwrap().path();
+            if source.extension().and_then(|x| x.to_str()) != Some("asm") {
+                continue;
+            }
+            let object = out.join(source.file_stem().unwrap()).with_extension("o");
+            run(Command::new("as")
+                .args(as_args)
                 .arg("-I")
                 .arg(root.join("include").join(&arch))
                 .arg("-o")

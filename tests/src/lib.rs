@@ -18,6 +18,8 @@ mod hashes;
 mod hmac_hkdf;
 #[cfg(test)]
 mod registry;
+#[cfg(target_arch = "x86_64")]
+mod webserver;
 #[cfg(test)]
 mod x25519;
 

@@ -256,5 +256,47 @@ bcrypt_hash:
     pop rbx
     ret
 
+.global bcrypt_verify
+bcrypt_verify:
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    push rbp
+    sub rsp, 40
+    mov rbp, rsp
+    mov rbx, rdi
+    mov r12, rsi
+    mov r13, rdx
+    mov r14, rcx
+    mov r15, r8
+    lea r8, [rbp + 8]
+    call bcrypt_hash
+
+    mov rsi, r15
+    lea rdi, [rbp + 8]
+    xor eax, eax
+    mov rdx, qword ptr [rdi]
+    xor rdx, qword ptr [rsi]
+    or rax, rdx
+    mov rdx, qword ptr [rdi + 8]
+    xor rdx, qword ptr [rsi + 8]
+    or rax, rdx
+    mov rdx, qword ptr [rdi + 16]
+    xor rdx, qword ptr [rsi + 16]
+    or rax, rdx
+    test rax, rax
+    sete al
+    movzx eax, al
+    add rsp, 40
+    pop rbp
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    ret
+
 .section .rodata
 .include "crypto/blowfish_constants.inc"

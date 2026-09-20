@@ -67,6 +67,7 @@ ASM_FUNC ct_select, ASM_TEST_SIG_BIGINT_BINARY, 0, crypto, bigint
 
 # X25519 and AEAD
 ASM_FUNC bcrypt_hash, ASM_TEST_SIG_KEY_BUFFER_TO_BUFFER, 0, crypto, bcrypt
+ASM_FUNC bcrypt_verify, ASM_TEST_SIG_KEY_BUFFER_TO_BUFFER, 0, crypto, bcrypt
 ASM_FUNC x25519, ASM_TEST_SIG_X25519, 0, crypto, x25519
 ASM_FUNC gcm_init, ASM_TEST_SIG_CONTEXT_KEY_NONCE, 0, crypto, gcm
 ASM_FUNC gcm_update_aad, ASM_TEST_SIG_CONTEXT_INPUT_OUTPUT_LENGTH, 0, crypto, gcm

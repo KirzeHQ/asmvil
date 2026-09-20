@@ -1,4 +1,4 @@
-use crate::{ffi::bcrypt_hash, helpers::eq};
+use crate::{ffi::{bcrypt_hash, bcrypt_verify}, helpers::eq};
 
 #[test]
 fn bcrypt_known_vector() {
@@ -25,4 +25,23 @@ fn bcrypt_known_vector() {
             0xef, 0xf0, 0x8c, 0x68, 0x13, 0xda, 0x5d,
         ],
     );
+    assert_eq!(unsafe {
+        bcrypt_verify(
+            password.as_ptr(),
+            password.len(),
+            salt.as_ptr(),
+            4,
+            output.as_ptr(),
+        )
+    }, 1);
+    output[0] ^= 1;
+    assert_eq!(unsafe {
+        bcrypt_verify(
+            password.as_ptr(),
+            password.len(),
+            salt.as_ptr(),
+            4,
+            output.as_ptr(),
+        )
+    }, 0);
 }

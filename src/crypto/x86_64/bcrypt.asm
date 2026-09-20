@@ -5,6 +5,9 @@
 .equ BF_P, 0
 .equ BF_S, 72
 .equ BF_STATE, 4176
+.equ BCRYPT_MIN_COST, 4
+.equ BCRYPT_MAX_COST, 31
+.equ BCRYPT_APP_MAX_COST, 16
 
 .section .text
 
@@ -154,6 +157,12 @@ bcrypt_expand:
 
 .global bcrypt_hash
 bcrypt_hash:
+    cmp ecx, BCRYPT_MIN_COST
+    jb .Lbcrypt_hash_invalid
+    cmp ecx, BCRYPT_MAX_COST
+    ja .Lbcrypt_hash_invalid
+    cmp ecx, BCRYPT_APP_MAX_COST
+    ja .Lbcrypt_hash_invalid
     push rbx
     push r12
     push r13
@@ -254,6 +263,11 @@ bcrypt_hash:
     pop r13
     pop r12
     pop rbx
+    xor eax, eax
+    ret
+
+.Lbcrypt_hash_invalid:
+    mov eax, 1
     ret
 
 .global bcrypt_verify
@@ -273,6 +287,8 @@ bcrypt_verify:
     mov r15, r8
     lea r8, [rbp + 8]
     call bcrypt_hash
+    test eax, eax
+    jnz .Lbcrypt_verify_invalid
 
     mov rsi, r15
     lea rdi, [rbp + 8]
@@ -289,6 +305,17 @@ bcrypt_verify:
     test rax, rax
     sete al
     movzx eax, al
+    add rsp, 40
+    pop rbp
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    ret
+
+.Lbcrypt_verify_invalid:
+    xor eax, eax
     add rsp, 40
     pop rbp
     pop r15

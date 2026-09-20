@@ -8,15 +8,16 @@ fn bcrypt_known_vector() {
         0x1d, 0x79, 0xf8, 0x21, 0, 0, 0, 0, 0,
     ];
     let mut output = [0u8; 24];
-    unsafe {
+    let status = unsafe {
         bcrypt_hash(
             password.as_ptr(),
             password.len(),
             salt.as_ptr(),
             4,
             output.as_mut_ptr(),
-        );
-    }
+        )
+    };
+    assert_eq!(status, 0);
     eq(
         &output[..23],
         &[
@@ -44,4 +45,19 @@ fn bcrypt_known_vector() {
             output.as_ptr(),
         )
     }, 0);
+
+    for cost in [0, 3, 17, 31, 32] {
+        output.fill(0xa5);
+        let status = unsafe {
+            bcrypt_hash(
+                password.as_ptr(),
+                password.len(),
+                salt.as_ptr(),
+                cost,
+                output.as_mut_ptr(),
+            )
+        };
+        assert_eq!(status, 1, "cost {cost} should be rejected");
+        assert_eq!(output, [0xa5; 24]);
+    }
 }

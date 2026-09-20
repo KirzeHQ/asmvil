@@ -1,4 +1,4 @@
 # bcrypt_hash(rdi=password, rsi=password_len, rdx=salt16, rcx=cost, r8=output).
-# Computes the raw 24-byte checksum; cost must be in the range 4..31.
+# Returns 0 on success and 1 when cost is outside 4..31 or above the app limit.
 # bcrypt_verify(rdi=password, rsi=password_len, rdx=salt16, rcx=cost, r8=checksum).
 # Returns 1 when the raw checksum matches, otherwise 0.

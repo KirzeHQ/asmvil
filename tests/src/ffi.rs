@@ -109,7 +109,7 @@ unsafe extern "C" {
         s: *const u8,
         cost: u32,
         o: *mut u8,
-    );
+    ) -> u64;
     #[cfg(target_arch = "x86_64")]
     pub(crate) fn bcrypt_verify(
         p: *const u8,

@@ -107,6 +107,7 @@ unsafe extern "C" {
         p: *const u8,
         pl: usize,
         s: *const u8,
+        sl: usize,
         cost: u32,
         o: *mut u8,
     ) -> u64;
@@ -115,9 +116,12 @@ unsafe extern "C" {
         p: *const u8,
         pl: usize,
         s: *const u8,
+        sl: usize,
         cost: u32,
         o: *const u8,
     ) -> u64;
+    #[cfg(target_arch = "x86_64")]
+    pub(crate) fn bcrypt_generate_salt(o: *mut u8) -> u64;
 
     #[cfg(target_arch = "x86_64")]
     pub(crate) fn web_socket(domain: u64, kind: u64, protocol: u64) -> i64;

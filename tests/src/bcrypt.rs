@@ -1,11 +1,11 @@
-use crate::{ffi::{bcrypt_hash, bcrypt_verify}, helpers::eq};
+use crate::{ffi::{bcrypt_generate_salt, bcrypt_hash, bcrypt_verify}, helpers::eq};
 
 #[test]
 fn bcrypt_known_vector() {
     let password = b"password";
     let salt = [
         0xdb, 0x7e, 0x39, 0xeb, 0xbf, 0x3d, 0xfb, 0xf7,
-        0x1d, 0x79, 0xf8, 0x21, 0, 0, 0, 0, 0,
+        0x1d, 0x79, 0xf8, 0x21, 0, 0, 0, 0,
     ];
     let mut output = [0u8; 24];
     let status = unsafe {
@@ -13,6 +13,7 @@ fn bcrypt_known_vector() {
             password.as_ptr(),
             password.len(),
             salt.as_ptr(),
+            salt.len(),
             4,
             output.as_mut_ptr(),
         )
@@ -31,6 +32,7 @@ fn bcrypt_known_vector() {
             password.as_ptr(),
             password.len(),
             salt.as_ptr(),
+            salt.len(),
             4,
             output.as_ptr(),
         )
@@ -41,6 +43,7 @@ fn bcrypt_known_vector() {
             password.as_ptr(),
             password.len(),
             salt.as_ptr(),
+            salt.len(),
             4,
             output.as_ptr(),
         )
@@ -53,6 +56,7 @@ fn bcrypt_known_vector() {
                 password.as_ptr(),
                 password.len(),
                 salt.as_ptr(),
+                salt.len(),
                 cost,
                 output.as_mut_ptr(),
             )
@@ -67,6 +71,7 @@ fn bcrypt_known_vector() {
             password_72.as_ptr(),
             password_72.len(),
             salt.as_ptr(),
+            salt.len(),
             4,
             output.as_mut_ptr(),
         )
@@ -78,9 +83,29 @@ fn bcrypt_known_vector() {
             password_73.as_ptr(),
             password_73.len(),
             salt.as_ptr(),
+            salt.len(),
             4,
             output.as_mut_ptr(),
         )
     }, 2);
     assert_eq!(output, [0xa5; 24]);
+
+    for salt_len in [0, 15, 17] {
+        output.fill(0xa5);
+        assert_eq!(unsafe {
+            bcrypt_hash(
+                password.as_ptr(),
+                password.len(),
+                salt.as_ptr(),
+                salt_len,
+                4,
+                output.as_mut_ptr(),
+            )
+        }, 3);
+        assert_eq!(output, [0xa5; 24]);
+    }
+
+    let mut generated = [0u8; 16];
+    assert_eq!(unsafe { bcrypt_generate_salt(generated.as_mut_ptr()) }, 0);
+    assert_ne!(generated, [0u8; 16]);
 }

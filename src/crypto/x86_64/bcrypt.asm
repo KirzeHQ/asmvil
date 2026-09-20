@@ -9,6 +9,8 @@
 .equ BCRYPT_MAX_COST, 31
 .equ BCRYPT_APP_MAX_COST, 16
 .equ BCRYPT_MAX_PASSWORD, 72
+.equ BCRYPT_SALT_LEN, 16
+.equ SYS_GETRANDOM, 318
 .equ BCRYPT_STACK, 4336
 .equ BCRYPT_SALT, 4176
 .equ BCRYPT_KEY, 4192
@@ -164,14 +166,16 @@ bcrypt_expand:
 
 .global bcrypt_hash
 bcrypt_hash:
-    cmp ecx, BCRYPT_MIN_COST
+    cmp r8d, BCRYPT_MIN_COST
     jb .Lbcrypt_hash_invalid
-    cmp ecx, BCRYPT_MAX_COST
+    cmp r8d, BCRYPT_MAX_COST
     ja .Lbcrypt_hash_invalid
-    cmp ecx, BCRYPT_APP_MAX_COST
+    cmp r8d, BCRYPT_APP_MAX_COST
     ja .Lbcrypt_hash_invalid
     cmp rsi, BCRYPT_MAX_PASSWORD
     ja .Lbcrypt_password_invalid
+    cmp ecx, BCRYPT_SALT_LEN
+    jne .Lbcrypt_salt_invalid
     push rbx
     push r12
     push r13
@@ -183,8 +187,8 @@ bcrypt_hash:
     mov rbx, rdi
     mov r12, rsi
     mov r13, rdx
-    mov r14, rcx
-    mov r15, r8
+    mov r14, r8
+    mov r15, r9
     lea rdi, [rbp + BCRYPT_KEY]
     mov rcx, r12
     mov rsi, rbx
@@ -295,8 +299,20 @@ bcrypt_hash:
     mov eax, 2
     ret
 
+.Lbcrypt_salt_invalid:
+    mov eax, 3
+    ret
+
 .global bcrypt_verify
 bcrypt_verify:
+    cmp rcx, BCRYPT_SALT_LEN
+    jne .Lbcrypt_verify_invalid_args
+    cmp rsi, BCRYPT_MAX_PASSWORD
+    ja .Lbcrypt_verify_invalid_args
+    cmp r8d, BCRYPT_MIN_COST
+    jb .Lbcrypt_verify_invalid_args
+    cmp r8d, BCRYPT_APP_MAX_COST
+    ja .Lbcrypt_verify_invalid_args
     push rbx
     push r12
     push r13
@@ -308,13 +324,14 @@ bcrypt_verify:
     mov rbx, rdi
     mov r12, rsi
     mov r13, rdx
-    mov r14, rcx
-    mov r15, r8
+    mov r14, r8
+    mov r15, r9
     mov rdi, rbx
     mov rsi, r12
     mov rdx, r13
-    mov rcx, r14
-    lea r8, [rbp + 8]
+    mov ecx, BCRYPT_SALT_LEN
+    mov r8, r14
+    lea r9, [rbp + 8]
     call bcrypt_hash
     test eax, eax
     jnz .Lbcrypt_verify_invalid
@@ -349,6 +366,43 @@ bcrypt_verify:
     pop rbp
     pop r15
     pop r14
+    pop r13
+    pop r12
+    pop rbx
+    ret
+
+.Lbcrypt_verify_invalid_args:
+    xor eax, eax
+    ret
+
+.global bcrypt_generate_salt
+bcrypt_generate_salt:
+    push rbx
+    push r12
+    push r13
+    mov rbx, rdi
+    xor r12d, r12d
+    mov r13d, BCRYPT_SALT_LEN
+.Lbcrypt_getrandom:
+    lea rdi, [rbx + r12]
+    mov rsi, r13
+    xor edx, edx
+    mov eax, SYS_GETRANDOM
+    syscall
+    test rax, rax
+    js .Lbcrypt_getrandom_fail
+    test rax, rax
+    jz .Lbcrypt_getrandom
+    add r12, rax
+    sub r13, rax
+    jnz .Lbcrypt_getrandom
+    xor eax, eax
+    pop r13
+    pop r12
+    pop rbx
+    ret
+.Lbcrypt_getrandom_fail:
+    mov eax, 1
     pop r13
     pop r12
     pop rbx

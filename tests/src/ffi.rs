@@ -102,6 +102,14 @@ unsafe extern "C" {
     pub(crate) fn aead_open(c: *mut u8, i: *const u8, o: *mut u8, n: usize) -> u8;
     pub(crate) fn aead_final(c: *mut u8, t: *mut u8) -> u8;
     pub(crate) fn aead_verify(c: *mut u8, t: *const u8) -> u64;
+    #[cfg(target_arch = "x86_64")]
+    pub(crate) fn bcrypt_hash(
+        p: *const u8,
+        pl: usize,
+        s: *const u8,
+        cost: u32,
+        o: *mut u8,
+    );
 
     #[cfg(target_arch = "x86_64")]
     pub(crate) fn web_socket(domain: u64, kind: u64, protocol: u64) -> i64;

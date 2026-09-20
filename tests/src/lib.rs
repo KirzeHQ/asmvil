@@ -7,6 +7,9 @@ mod helpers;
 #[cfg(test)]
 mod aes;
 #[cfg(test)]
+#[cfg(target_arch = "x86_64")]
+mod bcrypt;
+#[cfg(test)]
 mod bigint;
 #[cfg(test)]
 mod chacha_poly_aead;

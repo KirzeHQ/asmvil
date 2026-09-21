@@ -123,6 +123,17 @@ unsafe extern "C" {
     #[cfg(target_arch = "x86_64")]
     pub(crate) fn bcrypt_generate_salt(o: *mut u8) -> u64;
     #[cfg(target_arch = "x86_64")]
+    pub(crate) fn bcrypt_debug_stream_word(p: *const u8, n: usize, i: usize) -> u64;
+    #[cfg(target_arch = "x86_64")]
+    pub(crate) fn bcrypt_debug_initial_state(
+        p: *const u8,
+        pl: usize,
+        s: *const u8,
+        sl: usize,
+        po: *mut u32,
+        so: *mut u32,
+    ) -> u64;
+    #[cfg(target_arch = "x86_64")]
     pub(crate) fn bcrypt_encode(
         s: *const u8,
         c: *const u8,

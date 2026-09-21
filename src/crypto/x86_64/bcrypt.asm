@@ -57,6 +57,17 @@ bcrypt_word:
     mov eax, r8d
     ret
 
+.ifdef ASMVIL_TESTING
+.global bcrypt_debug_stream_word
+bcrypt_debug_stream_word:
+    call bcrypt_word
+    mov r8d, eax
+    shl r8, 32
+    mov eax, edx
+    or rax, r8
+    ret
+.endif
+
 .macro BF_ROUND left, right, n
     xor \right, dword ptr [r12 + BF_P + (\n * 4)]
     mov r8d, \right
@@ -150,6 +161,8 @@ bcrypt_expand:
     mov dword ptr [rsp + 8], r10d
     call bcrypt_encrypt
     mov r10d, dword ptr [rsp + 8]
+    mov ebx, eax
+    mov ecx, edx
     mov dword ptr [r12 + BF_P + r10 * 4], eax
     mov dword ptr [r12 + BF_P + r10 * 4 + 4], edx
     add r10d, 2
@@ -229,15 +242,16 @@ bcrypt_hash:
     mov ecx, dword ptr [rbp + BCRYPT_KEY_LEN]
     call bcrypt_expand
     mov rdi, rbp
-    mov rsi, r13
-    mov rdx, qword ptr [rbp + BCRYPT_KEY_PTR]
-    mov ecx, dword ptr [rbp + BCRYPT_KEY_LEN]
+    lea rsi, [rbp + BCRYPT_SALT]
+    mov rdx, r13
+    mov ecx, BCRYPT_SALT_LEN
     call bcrypt_expand
     dec dword ptr [rbp + BCRYPT_ROUNDS]
     jnz 1b
 
     mov r12, rbp
     mov eax, 0x4f727068
+    mov esi, eax
     mov edx, 0x65616e42
     mov rdi, rbp
     mov ecx, 64
@@ -251,6 +265,7 @@ bcrypt_hash:
     mov dword ptr [rbp + BF_STATE], eax
     mov dword ptr [rbp + BF_STATE + 4], edx
     mov eax, 0x65686f6c
+    mov esi, eax
     mov edx, 0x64657253
     mov rdi, rbp
     mov ecx, 64
@@ -264,6 +279,7 @@ bcrypt_hash:
     mov dword ptr [rbp + BF_STATE + 8], eax
     mov dword ptr [rbp + BF_STATE + 12], edx
     mov eax, 0x63727944
+    mov esi, eax
     mov edx, 0x6f756274
     mov rdi, rbp
     mov ecx, 64
@@ -277,7 +293,7 @@ bcrypt_hash:
     mov dword ptr [rbp + BF_STATE + 16], eax
     mov dword ptr [rbp + BF_STATE + 20], edx
 
-    mov rsi, rbp
+    lea rsi, [rbp + BF_STATE]
     mov rdi, r15
     mov ecx, 6
     rep movsd
@@ -298,6 +314,78 @@ bcrypt_hash:
 .Lbcrypt_hash_invalid:
     mov eax, 1
     ret
+
+.ifdef ASMVIL_TESTING
+.global bcrypt_debug_initial_state
+bcrypt_debug_initial_state:
+    cmp rsi, BCRYPT_MAX_PASSWORD
+    ja .Lbcrypt_debug_state_invalid
+    cmp rcx, BCRYPT_SALT_LEN
+    jne .Lbcrypt_debug_state_invalid
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+    push rbp
+    sub rsp, BCRYPT_STACK
+    mov rbp, rsp
+    mov rbx, rdi
+    mov r12, rsi
+    mov r13, rdx
+    mov r14, r8
+    mov r15, r9
+    lea rdi, [rbp + BCRYPT_KEY]
+    mov rcx, r12
+    mov rsi, rbx
+    rep movsb
+    mov byte ptr [rbp + BCRYPT_KEY + r12], 0
+    lea rax, [rbp + BCRYPT_KEY]
+    mov qword ptr [rbp + BCRYPT_KEY_PTR], rax
+    lea eax, [r12 + 1]
+    cmp eax, BCRYPT_MAX_PASSWORD
+    jbe 7f
+    mov eax, BCRYPT_MAX_PASSWORD
+7:
+    mov dword ptr [rbp + BCRYPT_KEY_LEN], eax
+    lea rsi, [rip + bcrypt_initial]
+    mov rdi, rbp
+    mov ecx, 1042
+    rep movsd
+    lea rdi, [rbp + BCRYPT_SALT]
+    xor eax, eax
+    mov ecx, 4
+    rep stosd
+    mov rdi, rbp
+    mov rsi, r13
+    mov rdx, qword ptr [rbp + BCRYPT_KEY_PTR]
+    mov ecx, dword ptr [rbp + BCRYPT_KEY_LEN]
+    call bcrypt_expand
+    mov rdi, r14
+    mov rsi, rbp
+    mov ecx, 18
+    rep movsd
+    mov rdi, r15
+    lea rsi, [rbp + BF_S]
+    mov ecx, 16
+    rep movsd
+    xor eax, eax
+    mov ecx, BCRYPT_STACK / 8
+    mov rdi, rbp
+    rep stosq
+    add rsp, BCRYPT_STACK
+    pop rbp
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    xor eax, eax
+    ret
+.Lbcrypt_debug_state_invalid:
+    mov eax, 1
+    ret
+.endif
 
 .Lbcrypt_password_invalid:
     mov eax, 2

@@ -59,7 +59,7 @@ fn bcrypt_known_vector() {
         )
     }, 0);
 
-    for cost in [0, 3, 17, 31, 32] {
+    for cost in [0, 3, 32] {
         output.fill(0xa5);
         let status = unsafe {
             bcrypt_hash(
@@ -158,9 +158,29 @@ fn bcrypt_known_vector() {
     assert_eq!(decoded_cost, 4);
     eq(&decoded_checksum, &output[..23]);
 
+    assert_eq!(unsafe {
+        bcrypt_encode(
+            salt.as_ptr(),
+            output.as_ptr(),
+            31,
+            encoded.as_mut_ptr(),
+        )
+    }, 0);
+    assert_eq!(&encoded[..6], b"$2b$31");
+    assert_eq!(unsafe {
+        bcrypt_decode(
+            encoded.as_ptr(),
+            60,
+            decoded_salt.as_mut_ptr(),
+            &mut decoded_cost,
+            decoded_checksum.as_mut_ptr(),
+        )
+    }, 0);
+    assert_eq!(decoded_cost, 31);
+
     for invalid in [
         b"$2a$04$0123456789abcdef......Mp5fbtg6tx0UCo4bVLZC0s9uhEeR0jy",
-        b"$2b$17$0123456789abcdef......Mp5fbtg6tx0UCo4bVLZC0s9uhEeR0jy",
+        b"$2b$32$0123456789abcdef......Mp5fbtg6tx0UCo4bVLZC0s9uhEeR0jy",
     ] {
         assert_eq!(unsafe {
             bcrypt_decode(

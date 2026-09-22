@@ -805,8 +805,6 @@ bcrypt_decode:
     cmp byte ptr [rdi + 1], '2'
     jne .Lbcrypt_decode_invalid
     movzx eax, byte ptr [rdi + 2]
-    cmp al, 'a'
-    je 7f
     cmp al, 'b'
     je 7f
     cmp al, 'y'

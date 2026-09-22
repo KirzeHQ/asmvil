@@ -8,4 +8,4 @@
 # bcrypt_verify returns 1 when the raw checksum matches.
 # bcrypt_encode(rdi=salt16, rsi=checksum23, edx=cost, rcx=output61) returns 0 on success and 1 for invalid arguments or null pointers.
 # bcrypt_decode(rdi=hash60, rsi=60, rdx=salt16, rcx=cost, r8=checksum23) returns 0 on success and 1 for invalid input or null pointers.
-# bcrypt_decode accepts $2a$, $2b$, and $2y$.
+# bcrypt_decode accepts $2b$ and $2y$ and rejects $2a$ because its historical high-bit password semantics are not implemented.

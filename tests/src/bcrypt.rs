@@ -158,7 +158,7 @@ fn bcrypt_known_vector() {
     assert_eq!(decoded_cost, 4);
     eq(&decoded_checksum, &output[..23]);
 
-    for prefix in [b'a', b'y'] {
+    for prefix in [b'y'] {
         let mut variant = encoded;
         variant[2] = prefix;
         assert_eq!(unsafe {
@@ -214,6 +214,7 @@ fn bcrypt_known_vector() {
     assert_eq!(decoded_checksum, [0xa5; 23]);
 
     for invalid in [
+        b"$2a$04$0123456789abcdef......Mp5fbtg6tx0UCo4bVLZC0s9uhEeR0jy",
         b"$2x$04$0123456789abcdef......Mp5fbtg6tx0UCo4bVLZC0s9uhEeR0jy",
         b"$2b$32$0123456789abcdef......Mp5fbtg6tx0UCo4bVLZC0s9uhEeR0jy",
     ] {

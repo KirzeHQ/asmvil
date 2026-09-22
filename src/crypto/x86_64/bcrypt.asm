@@ -677,11 +677,17 @@ bcrypt_b64_decode:
     or eax, ecx
     mov byte ptr [r14], al
     cmp r13, 2
-    je 5f
+    jne 8f
+    test dword ptr [rsp + 4], 15
+    jnz 6f
+    jmp 5f
+8:
     movzx edi, byte ptr [r12 + 2]
     call bcrypt_b64_value
     test eax, eax
     js 6f
+    test eax, 3
+    jnz 6f
     mov ecx, dword ptr [rsp + 4]
     shl ecx, 4
     shr eax, 2
@@ -757,15 +763,21 @@ bcrypt_decode:
     jne .Lbcrypt_decode_invalid
     cmp byte ptr [rdi + 1], '2'
     jne .Lbcrypt_decode_invalid
-    cmp byte ptr [rdi + 2], 'b'
+    movzx eax, byte ptr [rdi + 2]
+    cmp al, 'a'
+    je 7f
+    cmp al, 'b'
+    je 7f
+    cmp al, 'y'
     jne .Lbcrypt_decode_invalid
+7:
     cmp byte ptr [rdi + 3], '$'
     jne .Lbcrypt_decode_invalid
     push rbx
     push r12
     push r13
     push r14
-    sub rsp, 8
+    sub rsp, 80
     mov rbx, rdi
     mov r12, rdx
     mov r13, rcx
@@ -784,27 +796,37 @@ bcrypt_decode:
     jb .Lbcrypt_decode_invalid_pop
     cmp eax, BCRYPT_APP_MAX_COST
     ja .Lbcrypt_decode_invalid_pop
-    mov dword ptr [r13], eax
+    mov dword ptr [rsp + 16], eax
     lea rdi, [rbx + 7]
     mov esi, 22
-    mov rdx, r12
+    lea rdx, [rsp + 32]
     mov ecx, 16
     call bcrypt_b64_decode
     test eax, eax
     jnz .Lbcrypt_decode_invalid_pop
     lea rdi, [rbx + 29]
     mov esi, 31
-    mov rdx, r14
+    lea rdx, [rsp + 48]
     mov ecx, 23
     call bcrypt_b64_decode
     test eax, eax
     jnz .Lbcrypt_decode_invalid_pop
+    mov eax, dword ptr [rsp + 16]
+    mov dword ptr [r13], eax
+    lea rsi, [rsp + 32]
+    mov rdi, r12
+    mov ecx, 16
+    rep movsb
+    lea rsi, [rsp + 48]
+    mov rdi, r14
+    mov ecx, 23
+    rep movsb
     xor eax, eax
     jmp .Lbcrypt_decode_done
 .Lbcrypt_decode_invalid_pop:
     mov eax, 1
 .Lbcrypt_decode_done:
-    add rsp, 8
+    add rsp, 80
     pop r14
     pop r13
     pop r12

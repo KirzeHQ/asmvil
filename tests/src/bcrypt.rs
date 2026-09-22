@@ -158,6 +158,23 @@ fn bcrypt_known_vector() {
     assert_eq!(decoded_cost, 4);
     eq(&decoded_checksum, &output[..23]);
 
+    for prefix in [b'a', b'y'] {
+        let mut variant = encoded;
+        variant[2] = prefix;
+        assert_eq!(unsafe {
+            bcrypt_decode(
+                variant.as_ptr(),
+                60,
+                decoded_salt.as_mut_ptr(),
+                &mut decoded_cost,
+                decoded_checksum.as_mut_ptr(),
+            )
+        }, 0);
+        assert_eq!(decoded_cost, 4);
+        assert_eq!(decoded_salt, salt);
+        eq(&decoded_checksum, &output[..23]);
+    }
+
     assert_eq!(unsafe {
         bcrypt_encode(
             salt.as_ptr(),
@@ -178,8 +195,26 @@ fn bcrypt_known_vector() {
     }, 0);
     assert_eq!(decoded_cost, 31);
 
+    let mut noncanonical = encoded;
+    noncanonical[59] = b'/';
+    decoded_salt.fill(0xa5);
+    decoded_checksum.fill(0xa5);
+    decoded_cost = 0xa5;
+    assert_eq!(unsafe {
+        bcrypt_decode(
+            noncanonical.as_ptr(),
+            60,
+            decoded_salt.as_mut_ptr(),
+            &mut decoded_cost,
+            decoded_checksum.as_mut_ptr(),
+        )
+    }, 1);
+    assert_eq!(decoded_salt, [0xa5; 16]);
+    assert_eq!(decoded_cost, 0xa5);
+    assert_eq!(decoded_checksum, [0xa5; 23]);
+
     for invalid in [
-        b"$2a$04$0123456789abcdef......Mp5fbtg6tx0UCo4bVLZC0s9uhEeR0jy",
+        b"$2x$04$0123456789abcdef......Mp5fbtg6tx0UCo4bVLZC0s9uhEeR0jy",
         b"$2b$32$0123456789abcdef......Mp5fbtg6tx0UCo4bVLZC0s9uhEeR0jy",
     ] {
         assert_eq!(unsafe {

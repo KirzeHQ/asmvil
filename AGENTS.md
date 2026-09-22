@@ -85,6 +85,7 @@ GAS quirks when writing x86-64 Intel-syntax code:
 - **Comment only when necessary.** Code should be self-explanatory; comment the
   "why", not the "what". No decorative or redundant comments.
 - **Comments are short and single-line.** Do not use multiline comments or long comment blocks.
+- **Do not wrap one comment sentence across multiple lines.** Keep each sentence on a single comment line.
 - **All code requires human review.** Never merge or mark work as final without
   a human reviewing it. AI-generated code is welcome but must be reviewed the
   same as any other contribution.

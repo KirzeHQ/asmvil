@@ -1,6 +1,7 @@
 .intel_syntax noprefix
 
 .include "common.inc"
+.include "abi.inc"
 
 .equ BF_P, 0
 .equ BF_S, 72
@@ -874,6 +875,17 @@ bcrypt_decode:
 .Lbcrypt_decode_invalid:
     mov eax, 1
     ret
+
+.global bcrypt_hash_v1
+.set bcrypt_hash_v1, bcrypt_hash
+.global bcrypt_verify_v1
+.set bcrypt_verify_v1, bcrypt_verify
+.global bcrypt_generate_salt_v1
+.set bcrypt_generate_salt_v1, bcrypt_generate_salt
+.global bcrypt_encode_v1
+.set bcrypt_encode_v1, bcrypt_encode
+.global bcrypt_decode_v1
+.set bcrypt_decode_v1, bcrypt_decode
 
 .section .rodata
 .include "crypto/blowfish_constants.inc"

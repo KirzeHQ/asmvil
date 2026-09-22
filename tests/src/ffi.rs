@@ -112,6 +112,15 @@ unsafe extern "C" {
         o: *mut u8,
     ) -> u64;
     #[cfg(target_arch = "x86_64")]
+    pub(crate) fn bcrypt_hash_v1(
+        p: *const u8,
+        pl: usize,
+        s: *const u8,
+        sl: usize,
+        cost: u32,
+        o: *mut u8,
+    ) -> u64;
+    #[cfg(target_arch = "x86_64")]
     pub(crate) fn bcrypt_verify(
         p: *const u8,
         pl: usize,

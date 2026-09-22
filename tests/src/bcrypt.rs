@@ -1,5 +1,5 @@
 use crate::{
-    ffi::{bcrypt_decode, bcrypt_encode, bcrypt_generate_salt, bcrypt_hash, bcrypt_verify},
+    ffi::{bcrypt_decode, bcrypt_encode, bcrypt_generate_salt, bcrypt_hash, bcrypt_hash_v1, bcrypt_verify},
     helpers::eq,
 };
 use blowfish::Blowfish;
@@ -228,6 +228,28 @@ fn bcrypt_known_vector() {
             )
         }, 1);
     }
+}
+
+#[test]
+fn bcrypt_v1_symbol_matches_unversioned_abi() {
+    let password = b"password";
+    let salt = [0xdb, 0x7e, 0x39, 0xeb, 0xbf, 0x3d, 0xfb, 0xf7,
+        0x1d, 0x79, 0xf8, 0x21, 0, 0, 0, 0];
+    let mut unversioned = [0u8; 24];
+    let mut versioned = [0u8; 24];
+    assert_eq!(unsafe {
+        bcrypt_hash(
+            password.as_ptr(), password.len(), salt.as_ptr(), salt.len(), 4,
+            unversioned.as_mut_ptr(),
+        )
+    }, 0);
+    assert_eq!(unsafe {
+        bcrypt_hash_v1(
+            password.as_ptr(), password.len(), salt.as_ptr(), salt.len(), 4,
+            versioned.as_mut_ptr(),
+        )
+    }, 0);
+    assert_eq!(unversioned, versioned);
 }
 
 #[test]

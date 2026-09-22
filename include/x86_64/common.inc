@@ -1,5 +1,8 @@
 .intel_syntax noprefix
 
+# Stable public assembly ABI version.
+.equ ABI_VERSION_1, 1
+
 # Named constants for sys calls (x86-64 Linux)
 .equ SYS_READ, 0
 .equ SYS_WRITE, 1

@@ -1,3 +1,8 @@
+# bcrypt_hash and bcrypt_hash_v1 share the v1 ABI.
+# bcrypt_verify and bcrypt_verify_v1 share the v1 ABI.
+# bcrypt_generate_salt and bcrypt_generate_salt_v1 share the v1 ABI.
+# bcrypt_encode and bcrypt_encode_v1 share the v1 ABI.
+# bcrypt_decode and bcrypt_decode_v1 share the v1 ABI.
 # bcrypt_hash(rdi=password, rsi=password_len, rdx=salt, rcx=salt_len, r8=cost, r9=output).
 # Returns 0 on success, 1 for cost failure, 2 for password failure, 3 for salt failure, and 4 for output failure.
 # A null password is valid only when password_len is zero.

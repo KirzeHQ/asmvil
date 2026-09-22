@@ -1,7 +1,11 @@
 # bcrypt_hash(rdi=password, rsi=password_len, rdx=salt, rcx=salt_len, r8=cost, r9=output).
-# Returns 0 on success, 1 for cost failure, and 2 for passwords over 72 bytes.
-# Salt length must be exactly 16 bytes. bcrypt_generate_salt(rdi=output16).
+# Returns 0 on success, 1 for cost failure, 2 for password failure, 3 for salt failure, and 4 for output failure.
+# A null password is valid only when password_len is zero.
+# Salt length must be exactly 16 bytes.
+# bcrypt_generate_salt(rdi=output16) returns 0 on success and 1 for a null output pointer or getrandom failure.
 # bcrypt_verify uses the hash arguments and takes checksum in r9.
-# Returns 1 when the raw checksum matches, otherwise 0.
-# bcrypt_encode(rdi=salt16, rsi=checksum23, edx=cost, rcx=output61).
-# bcrypt_decode(rdi=hash60, rsi=60, rdx=salt16, rcx=cost, r8=checksum23).
+# Null pointers or invalid arguments return 0.
+# bcrypt_verify returns 1 when the raw checksum matches.
+# bcrypt_encode(rdi=salt16, rsi=checksum23, edx=cost, rcx=output61) returns 0 on success and 1 for invalid arguments or null pointers.
+# bcrypt_decode(rdi=hash60, rsi=60, rdx=salt16, rcx=cost, r8=checksum23) returns 0 on success and 1 for invalid input or null pointers.
+# bcrypt_decode accepts $2a$, $2b$, and $2y$.

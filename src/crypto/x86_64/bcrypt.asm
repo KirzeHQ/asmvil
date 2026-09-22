@@ -8,6 +8,7 @@
 .equ BCRYPT_MIN_COST, 4
 .equ BCRYPT_MAX_COST, 31
 .equ BCRYPT_APP_MAX_COST, 31
+.equ BCRYPT_OUTPUT_INVALID, 4
 .equ BCRYPT_MAX_PASSWORD, 72
 .equ BCRYPT_SALT_LEN, 16
 .equ SYS_GETRANDOM, 318
@@ -189,6 +190,15 @@ bcrypt_hash:
     ja .Lbcrypt_password_invalid
     cmp ecx, BCRYPT_SALT_LEN
     jne .Lbcrypt_salt_invalid
+    test r9, r9
+    jz .Lbcrypt_output_invalid
+    test rdx, rdx
+    jz .Lbcrypt_salt_invalid
+    test rsi, rsi
+    jz 8f
+    test rdi, rdi
+    jz .Lbcrypt_password_invalid
+8:
     push rbx
     push r12
     push r13
@@ -394,11 +404,23 @@ bcrypt_debug_initial_state:
 .Lbcrypt_salt_invalid:
     mov eax, 3
     ret
+.Lbcrypt_output_invalid:
+    mov eax, BCRYPT_OUTPUT_INVALID
+    ret
 
 .global bcrypt_verify
 bcrypt_verify:
     cmp rcx, BCRYPT_SALT_LEN
     jne .Lbcrypt_verify_invalid_args
+    test rdx, rdx
+    jz .Lbcrypt_verify_invalid_args
+    test r9, r9
+    jz .Lbcrypt_verify_invalid_args
+    test rsi, rsi
+    jz 9f
+    test rdi, rdi
+    jz .Lbcrypt_verify_invalid_args
+9:
     cmp rsi, BCRYPT_MAX_PASSWORD
     ja .Lbcrypt_verify_invalid_args
     cmp r8d, BCRYPT_MIN_COST
@@ -481,6 +503,8 @@ bcrypt_verify:
 
 .global bcrypt_generate_salt
 bcrypt_generate_salt:
+    test rdi, rdi
+    jz .Lbcrypt_null_salt_fail
     push rbx
     push r12
     push r13
@@ -504,6 +528,9 @@ bcrypt_generate_salt:
     pop r13
     pop r12
     pop rbx
+    ret
+.Lbcrypt_null_salt_fail:
+    mov eax, 1
     ret
 .Lbcrypt_getrandom_fail:
     mov eax, 1
@@ -712,6 +739,12 @@ bcrypt_b64_decode:
 
 .global bcrypt_encode
 bcrypt_encode:
+    test rdi, rdi
+    jz .Lbcrypt_encode_invalid
+    test rsi, rsi
+    jz .Lbcrypt_encode_invalid
+    test rcx, rcx
+    jz .Lbcrypt_encode_invalid
     cmp edx, BCRYPT_MIN_COST
     jb .Lbcrypt_encode_invalid
     cmp edx, BCRYPT_APP_MAX_COST
@@ -757,6 +790,14 @@ bcrypt_encode:
 
 .global bcrypt_decode
 bcrypt_decode:
+    test rdi, rdi
+    jz .Lbcrypt_decode_invalid
+    test rdx, rdx
+    jz .Lbcrypt_decode_invalid
+    test rcx, rcx
+    jz .Lbcrypt_decode_invalid
+    test r8, r8
+    jz .Lbcrypt_decode_invalid
     cmp rsi, 60
     jne .Lbcrypt_decode_invalid
     cmp byte ptr [rdi], '$'

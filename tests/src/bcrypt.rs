@@ -306,6 +306,107 @@ fn bcrypt_external_compatibility_vectors() {
 }
 
 #[test]
+fn bcrypt_null_pointer_contracts() {
+    let password = b"password";
+    let salt = [0u8; 16];
+    let checksum = [0u8; 23];
+    let mut output = [0xa5u8; 24];
+
+    assert_eq!(unsafe {
+        bcrypt_hash(
+            std::ptr::null(),
+            1,
+            salt.as_ptr(),
+            salt.len(),
+            4,
+            output.as_mut_ptr(),
+        )
+    }, 2);
+    assert_eq!(output, [0xa5; 24]);
+
+    assert_eq!(unsafe {
+        bcrypt_hash(
+            password.as_ptr(),
+            password.len(),
+            std::ptr::null(),
+            salt.len(),
+            4,
+            output.as_mut_ptr(),
+        )
+    }, 3);
+    assert_eq!(output, [0xa5; 24]);
+
+    assert_eq!(unsafe {
+        bcrypt_hash(
+            password.as_ptr(),
+            password.len(),
+            salt.as_ptr(),
+            salt.len(),
+            4,
+            std::ptr::null_mut(),
+        )
+    }, 4);
+
+    assert_eq!(unsafe {
+        bcrypt_verify(
+            std::ptr::null(),
+            1,
+            salt.as_ptr(),
+            salt.len(),
+            4,
+            checksum.as_ptr(),
+        )
+    }, 0);
+    assert_eq!(unsafe {
+        bcrypt_verify(
+            password.as_ptr(),
+            password.len(),
+            salt.as_ptr(),
+            salt.len(),
+            4,
+            std::ptr::null(),
+        )
+    }, 0);
+    assert_eq!(unsafe { bcrypt_generate_salt(std::ptr::null_mut()) }, 1);
+
+    let mut encoded = [0xa5u8; 61];
+    assert_eq!(unsafe {
+        bcrypt_encode(
+            std::ptr::null(),
+            checksum.as_ptr(),
+            4,
+            encoded.as_mut_ptr(),
+        )
+    }, 1);
+    assert_eq!(encoded, [0xa5; 61]);
+    assert_eq!(unsafe {
+        bcrypt_encode(
+            salt.as_ptr(),
+            checksum.as_ptr(),
+            4,
+            std::ptr::null_mut(),
+        )
+    }, 1);
+
+    let hash = b"$2b$04$0123456789abcdef......H7gfdCA4aaQ3ZJeJCmE1yyY4B0GGGlC";
+    let decoded_salt = [0xa5u8; 16];
+    let mut decoded_cost = 0xa5a5_a5a5;
+    let mut decoded_checksum = [0xa5u8; 23];
+    assert_eq!(unsafe {
+        bcrypt_decode(
+            hash.as_ptr(),
+            hash.len(),
+            std::ptr::null_mut(),
+            &mut decoded_cost,
+            decoded_checksum.as_mut_ptr(),
+        )
+    }, 1);
+    assert_eq!(decoded_salt, [0xa5; 16]);
+    assert_eq!(decoded_cost, 0xa5a5_a5a5);
+    assert_eq!(decoded_checksum, [0xa5; 23]);
+}
+
+#[test]
 fn bcrypt_salt_stream_words_are_big_endian_and_cyclic() {
     let salt = [
         0xdb, 0x7e, 0x39, 0xeb, 0xbf, 0x3d, 0xfb, 0xf7,

@@ -10,6 +10,34 @@
 .equ BCRYPT_MAX_COST, 31
 .equ BCRYPT_APP_MAX_COST, 31
 .equ BCRYPT_OUTPUT_INVALID, 4
+.equ BCRYPT_VARIANT_2A, 1
+.equ BCRYPT_VARIANT_2B, 2
+.equ BCRYPT_VARIANT_2Y, 3
+.equ BCRYPT_HASH_V2_SIZE, 72
+.equ BCRYPT_REQ_VERSION, 0
+.equ BCRYPT_REQ_SIZE, 4
+.equ BCRYPT_REQ_VARIANT, 8
+.equ BCRYPT_REQ_PASSWORD, 16
+.equ BCRYPT_REQ_PASSWORD_LEN, 24
+.equ BCRYPT_REQ_SALT, 32
+.equ BCRYPT_REQ_SALT_LEN, 40
+.equ BCRYPT_REQ_COST, 48
+.equ BCRYPT_REQ_OUTPUT, 56
+.equ BCRYPT_REQ_OUTPUT_LEN, 64
+.equ BCRYPT_MODE, 4292
+.equ BCRYPT_ENCODE_V2_SIZE, 56
+.equ BCRYPT_ENCODE_REQ_SALT, 16
+.equ BCRYPT_ENCODE_REQ_CHECKSUM, 24
+.equ BCRYPT_ENCODE_REQ_COST, 32
+.equ BCRYPT_ENCODE_REQ_OUTPUT, 40
+.equ BCRYPT_ENCODE_REQ_OUTPUT_LEN, 48
+.equ BCRYPT_DECODE_V2_SIZE, 56
+.equ BCRYPT_DECODE_REQ_HASH, 8
+.equ BCRYPT_DECODE_REQ_HASH_LEN, 16
+.equ BCRYPT_DECODE_REQ_SALT, 24
+.equ BCRYPT_DECODE_REQ_COST, 32
+.equ BCRYPT_DECODE_REQ_CHECKSUM, 40
+.equ BCRYPT_DECODE_REQ_VARIANT, 48
 .equ BCRYPT_MAX_PASSWORD, 72
 .equ BCRYPT_SALT_LEN, 16
 .equ SYS_GETRANDOM, 318
@@ -56,6 +84,43 @@ bcrypt_word:
     jb 4f
     xor edx, edx
 4:
+    mov eax, r8d
+    ret
+
+# Read one cyclic word with the historical signed-byte behavior.
+bcrypt_word_2a:
+    xor r8d, r8d
+    movsx eax, byte ptr [rdi + rdx]
+    shl eax, 24
+    mov r8d, eax
+    inc rdx
+    cmp rdx, rsi
+    jb 5f
+    xor edx, edx
+5:
+    movsx eax, byte ptr [rdi + rdx]
+    shl eax, 16
+    or r8d, eax
+    inc rdx
+    cmp rdx, rsi
+    jb 6f
+    xor edx, edx
+6:
+    movsx eax, byte ptr [rdi + rdx]
+    shl eax, 8
+    or r8d, eax
+    inc rdx
+    cmp rdx, rsi
+    jb 7f
+    xor edx, edx
+7:
+    movsx eax, byte ptr [rdi + rdx]
+    or r8d, eax
+    inc rdx
+    cmp rdx, rsi
+    jb 8f
+    xor edx, edx
+8:
     mov eax, r8d
     ret
 
@@ -126,6 +191,7 @@ bcrypt_expand:
     mov r13, rsi
     mov r14, rdx
     mov r15, rcx
+    mov dword ptr [rsp + 12], r8d
     mov dword ptr [rsp], 0
     mov dword ptr [rsp + 4], 0
 
@@ -134,7 +200,13 @@ bcrypt_expand:
     mov rdi, r14
     mov rsi, r15
     mov edx, dword ptr [rsp]
+    cmp dword ptr [rsp + 12], BCRYPT_VARIANT_2A
+    jne 9f
+    call bcrypt_word_2a
+    jmp 10f
+9:
     call bcrypt_word
+10:
     mov dword ptr [rsp], edx
     xor dword ptr [r12 + BF_P + r10 * 4], eax
     inc r10d
@@ -181,6 +253,38 @@ bcrypt_expand:
 
 .global bcrypt_hash
 bcrypt_hash:
+    mov r10d, BCRYPT_VARIANT_2B
+    jmp .Lbcrypt_hash_core
+
+.global bcrypt_hash_v2
+bcrypt_hash_v2:
+    test rdi, rdi
+    jz .Lbcrypt_hash_v2_invalid
+    cmp dword ptr [rdi + BCRYPT_REQ_VERSION], ABI_VERSION_2
+    jne .Lbcrypt_hash_v2_invalid
+    cmp dword ptr [rdi + BCRYPT_REQ_SIZE], BCRYPT_HASH_V2_SIZE
+    jb .Lbcrypt_hash_v2_invalid
+    mov r11, rdi
+    mov r10d, dword ptr [r11 + BCRYPT_REQ_VARIANT]
+    cmp r10d, BCRYPT_VARIANT_2A
+    jb .Lbcrypt_hash_v2_invalid
+    cmp r10d, BCRYPT_VARIANT_2Y
+    ja .Lbcrypt_hash_v2_invalid
+    mov rdi, qword ptr [r11 + BCRYPT_REQ_PASSWORD]
+    mov rsi, qword ptr [r11 + BCRYPT_REQ_PASSWORD_LEN]
+    mov rdx, qword ptr [r11 + BCRYPT_REQ_SALT]
+    mov rcx, qword ptr [r11 + BCRYPT_REQ_SALT_LEN]
+    mov r8d, dword ptr [r11 + BCRYPT_REQ_COST]
+    mov r9, qword ptr [r11 + BCRYPT_REQ_OUTPUT]
+    cmp qword ptr [r11 + BCRYPT_REQ_OUTPUT_LEN], 24
+    jb .Lbcrypt_output_invalid
+    jmp .Lbcrypt_hash_core
+
+.Lbcrypt_hash_v2_invalid:
+    mov eax, 1
+    ret
+
+.Lbcrypt_hash_core:
     cmp r8d, BCRYPT_MIN_COST
     jb .Lbcrypt_hash_invalid
     cmp r8d, BCRYPT_MAX_COST
@@ -208,6 +312,7 @@ bcrypt_hash:
     push rbp
     sub rsp, BCRYPT_STACK
     mov rbp, rsp
+    mov dword ptr [rbp + BCRYPT_MODE], r10d
     mov rbx, rdi
     mov r12, rsi
     mov r13, rdx
@@ -240,6 +345,7 @@ bcrypt_hash:
     mov rsi, r13
     mov rdx, qword ptr [rbp + BCRYPT_KEY_PTR]
     mov ecx, dword ptr [rbp + BCRYPT_KEY_LEN]
+    mov r8d, dword ptr [rbp + BCRYPT_MODE]
     call bcrypt_expand
 
     mov eax, 1
@@ -251,11 +357,13 @@ bcrypt_hash:
     lea rsi, [rbp + BCRYPT_SALT]
     mov rdx, qword ptr [rbp + BCRYPT_KEY_PTR]
     mov ecx, dword ptr [rbp + BCRYPT_KEY_LEN]
+    mov r8d, dword ptr [rbp + BCRYPT_MODE]
     call bcrypt_expand
     mov rdi, rbp
     lea rsi, [rbp + BCRYPT_SALT]
     mov rdx, r13
     mov ecx, BCRYPT_SALT_LEN
+    mov r8d, dword ptr [rbp + BCRYPT_MODE]
     call bcrypt_expand
     dec dword ptr [rbp + BCRYPT_ROUNDS]
     jnz 1b
@@ -740,6 +848,31 @@ bcrypt_b64_decode:
 
 .global bcrypt_encode
 bcrypt_encode:
+    mov r10d, BCRYPT_VARIANT_2B
+    jmp .Lbcrypt_encode_core
+
+.global bcrypt_encode_v2
+bcrypt_encode_v2:
+    test rdi, rdi
+    jz .Lbcrypt_encode_invalid
+    cmp dword ptr [rdi], ABI_VERSION_2
+    jne .Lbcrypt_encode_invalid
+    cmp dword ptr [rdi + 4], BCRYPT_ENCODE_V2_SIZE
+    jb .Lbcrypt_encode_invalid
+    mov r11, rdi
+    mov r10d, dword ptr [r11 + 8]
+    cmp r10d, BCRYPT_VARIANT_2A
+    jb .Lbcrypt_encode_invalid
+    cmp r10d, BCRYPT_VARIANT_2Y
+    ja .Lbcrypt_encode_invalid
+    mov rdi, qword ptr [r11 + BCRYPT_ENCODE_REQ_SALT]
+    mov rsi, qword ptr [r11 + BCRYPT_ENCODE_REQ_CHECKSUM]
+    mov edx, dword ptr [r11 + BCRYPT_ENCODE_REQ_COST]
+    mov rcx, qword ptr [r11 + BCRYPT_ENCODE_REQ_OUTPUT]
+    cmp qword ptr [r11 + BCRYPT_ENCODE_REQ_OUTPUT_LEN], 61
+    jb .Lbcrypt_encode_invalid
+
+.Lbcrypt_encode_core:
     test rdi, rdi
     jz .Lbcrypt_encode_invalid
     test rsi, rsi
@@ -759,6 +892,19 @@ bcrypt_encode:
     mov r13, rcx
     mov r14d, edx
     mov dword ptr [r13], 0x24623224
+    cmp r10d, BCRYPT_VARIANT_2B
+    je 11f
+    cmp r10d, BCRYPT_VARIANT_2A
+    jne 12f
+    mov byte ptr [r13 + 2], 'a'
+    jmp 12f
+11:
+    mov byte ptr [r13 + 2], 'b'
+12:
+    cmp r10d, BCRYPT_VARIANT_2Y
+    jne 13f
+    mov byte ptr [r13 + 2], 'y'
+13:
     mov eax, r14d
     xor edx, edx
     mov ecx, 10
@@ -873,6 +1019,78 @@ bcrypt_decode:
     pop rbx
     ret
 .Lbcrypt_decode_invalid:
+    mov eax, 1
+    ret
+
+.global bcrypt_decode_v2
+bcrypt_decode_v2:
+    test rdi, rdi
+    jz .Lbcrypt_decode_v2_invalid
+    cmp dword ptr [rdi], ABI_VERSION_2
+    jne .Lbcrypt_decode_v2_invalid
+    cmp dword ptr [rdi + 4], BCRYPT_DECODE_V2_SIZE
+    jb .Lbcrypt_decode_v2_invalid
+    mov r11, rdi
+    mov rdi, qword ptr [r11 + BCRYPT_DECODE_REQ_HASH]
+    mov rsi, qword ptr [r11 + BCRYPT_DECODE_REQ_HASH_LEN]
+    mov rdx, qword ptr [r11 + BCRYPT_DECODE_REQ_SALT]
+    mov rcx, qword ptr [r11 + BCRYPT_DECODE_REQ_COST]
+    mov r8, qword ptr [r11 + BCRYPT_DECODE_REQ_CHECKSUM]
+    mov r9, qword ptr [r11 + BCRYPT_DECODE_REQ_VARIANT]
+    test rdi, rdi
+    jz .Lbcrypt_decode_v2_invalid
+    test rdx, rdx
+    jz .Lbcrypt_decode_v2_invalid
+    test rcx, rcx
+    jz .Lbcrypt_decode_v2_invalid
+    test r8, r8
+    jz .Lbcrypt_decode_v2_invalid
+    test r9, r9
+    jz .Lbcrypt_decode_v2_invalid
+    cmp rsi, 60
+    jne .Lbcrypt_decode_v2_invalid
+    sub rsp, 80
+    mov qword ptr [rsp + 68], r9
+    mov r10, rdi
+    mov rdi, rsp
+    mov rsi, r10
+    mov ecx, 60
+    rep movsb
+    movzx eax, byte ptr [rsp + 2]
+    cmp al, 'a'
+    je 14f
+    cmp al, 'b'
+    je 15f
+    cmp al, 'y'
+    jne .Lbcrypt_decode_v2_cleanup_invalid
+    mov dword ptr [rsp + 64], BCRYPT_VARIANT_2Y
+    jmp 16f
+14:
+    mov dword ptr [rsp + 64], BCRYPT_VARIANT_2A
+    mov byte ptr [rsp + 2], 'b'
+    jmp 16f
+15:
+    mov dword ptr [rsp + 64], BCRYPT_VARIANT_2B
+16:
+    mov rdi, rsp
+    mov esi, 60
+    mov rdx, qword ptr [r11 + BCRYPT_DECODE_REQ_SALT]
+    mov rcx, qword ptr [r11 + BCRYPT_DECODE_REQ_COST]
+    mov r8, qword ptr [r11 + BCRYPT_DECODE_REQ_CHECKSUM]
+    call bcrypt_decode
+    test eax, eax
+    jnz .Lbcrypt_decode_v2_cleanup_invalid
+    mov rdi, qword ptr [rsp + 68]
+    mov eax, dword ptr [rsp + 64]
+    mov dword ptr [rdi], eax
+    xor eax, eax
+    add rsp, 80
+    ret
+.Lbcrypt_decode_v2_cleanup_invalid:
+    mov eax, 1
+    add rsp, 80
+    ret
+.Lbcrypt_decode_v2_invalid:
     mov eax, 1
     ret
 

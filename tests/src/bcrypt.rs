@@ -1,8 +1,50 @@
 use crate::{
-    ffi::{bcrypt_decode, bcrypt_encode, bcrypt_generate_salt, bcrypt_hash, bcrypt_hash_v1, bcrypt_verify},
+    ffi::{bcrypt_decode, bcrypt_decode_v2, bcrypt_encode, bcrypt_encode_v2, bcrypt_generate_salt, bcrypt_hash, bcrypt_hash_v1, bcrypt_hash_v2, bcrypt_verify},
     helpers::eq,
 };
 use blowfish::Blowfish;
+
+#[repr(C)]
+pub(crate) struct BcryptHashRequestV2 {
+    pub(crate) version: u32,
+    pub(crate) size: u32,
+    pub(crate) variant: u32,
+    pub(crate) reserved: u32,
+    pub(crate) password: *const u8,
+    pub(crate) password_len: usize,
+    pub(crate) salt: *const u8,
+    pub(crate) salt_len: usize,
+    pub(crate) cost: u32,
+    pub(crate) reserved2: u32,
+    pub(crate) output: *mut u8,
+    pub(crate) output_len: usize,
+}
+
+#[repr(C)]
+pub(crate) struct BcryptEncodeRequestV2 {
+    pub(crate) version: u32,
+    pub(crate) size: u32,
+    pub(crate) variant: u32,
+    pub(crate) reserved: u32,
+    pub(crate) salt: *const u8,
+    pub(crate) checksum: *const u8,
+    pub(crate) cost: u32,
+    pub(crate) reserved2: u32,
+    pub(crate) output: *mut u8,
+    pub(crate) output_len: usize,
+}
+
+#[repr(C)]
+pub(crate) struct BcryptDecodeRequestV2 {
+    pub(crate) version: u32,
+    pub(crate) size: u32,
+    pub(crate) hash: *const u8,
+    pub(crate) hash_len: usize,
+    pub(crate) salt: *mut u8,
+    pub(crate) cost: *mut u32,
+    pub(crate) checksum: *mut u8,
+    pub(crate) variant: *mut u32,
+}
 
 #[repr(C)]
 struct BlowfishState {
@@ -250,6 +292,79 @@ fn bcrypt_v1_symbol_matches_unversioned_abi() {
         )
     }, 0);
     assert_eq!(unversioned, versioned);
+}
+
+#[test]
+fn bcrypt_v2_variants_share_versioned_request_abi() {
+    let password = [0x80u8, b'p', b'a', b's', b's'];
+    let salt = [0x80u8; 16];
+    let mut v1 = [0u8; 24];
+    let mut v2 = [0u8; 24];
+    let mut v2a = [0u8; 24];
+    let base = BcryptHashRequestV2 {
+        version: 2,
+        size: 72,
+        variant: 2,
+        reserved: 0,
+        password: password.as_ptr(),
+        password_len: password.len(),
+        salt: salt.as_ptr(),
+        salt_len: salt.len(),
+        cost: 4,
+        reserved2: 0,
+        output: v2.as_mut_ptr(),
+        output_len: v2.len(),
+    };
+    assert_eq!(unsafe {
+        bcrypt_hash(
+            password.as_ptr(), password.len(), salt.as_ptr(), salt.len(), 4,
+            v1.as_mut_ptr(),
+        )
+    }, 0);
+    assert_eq!(unsafe { bcrypt_hash_v2(&base) }, 0);
+    assert_eq!(v1, v2);
+
+    let mut request_2a = base;
+    request_2a.variant = 1;
+    request_2a.output = v2a.as_mut_ptr();
+    assert_eq!(unsafe { bcrypt_hash_v2(&request_2a) }, 0);
+    assert_ne!(v2, v2a);
+
+    let mut encoded = [0u8; 61];
+    let encode_2a = BcryptEncodeRequestV2 {
+        version: 2,
+        size: 56,
+        variant: 1,
+        reserved: 0,
+        salt: salt.as_ptr(),
+        checksum: v2a.as_ptr(),
+        cost: 4,
+        reserved2: 0,
+        output: encoded.as_mut_ptr(),
+        output_len: encoded.len(),
+    };
+    assert_eq!(unsafe { bcrypt_encode_v2(&encode_2a) }, 0);
+    assert_eq!(&encoded[..4], b"$2a$");
+
+    let mut decoded_salt = [0u8; 16];
+    let mut decoded_cost = 0;
+    let mut decoded_variant = 0;
+    let mut decoded_checksum = [0u8; 23];
+    let decode_2a = BcryptDecodeRequestV2 {
+        version: 2,
+        size: 56,
+        hash: encoded.as_ptr(),
+        hash_len: 60,
+        salt: decoded_salt.as_mut_ptr(),
+        cost: &mut decoded_cost,
+        checksum: decoded_checksum.as_mut_ptr(),
+        variant: &mut decoded_variant,
+    };
+    assert_eq!(unsafe { bcrypt_decode_v2(&decode_2a) }, 0);
+    assert_eq!(decoded_salt, salt);
+    assert_eq!(decoded_cost, 4);
+    assert_eq!(decoded_variant, 1);
+    assert_eq!(&decoded_checksum, &v2a[..23]);
 }
 
 #[test]

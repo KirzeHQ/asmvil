@@ -2,3 +2,4 @@
 # The unversioned symbol remains an alias for the oldest supported ABI.
 # New ABI revisions must add a new versioned symbol and preserve older symbols.
 # Version changes use explicit symbols instead of changing existing register signatures.
+# Versioned request structures begin with a u32 version and u32 size field.

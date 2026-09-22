@@ -2,6 +2,7 @@
 
 # Stable public assembly ABI version.
 .equ ABI_VERSION_1, 1
+.equ ABI_VERSION_2, 2
 
 # Named constants for sys calls (x86-64 Linux)
 .equ SYS_READ, 0

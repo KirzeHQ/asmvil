@@ -564,6 +564,69 @@ bcrypt_debug_initial_state:
     mov eax, BCRYPT_OUTPUT_INVALID
     ret
 
+.global bcrypt_verify_v2
+bcrypt_verify_v2:
+    test rdi, rdi
+    jz .Lbcrypt_verify_v2_invalid
+    cmp dword ptr [rdi + BCRYPT_REQ_VERSION], ABI_VERSION_2
+    jne .Lbcrypt_verify_v2_invalid
+    cmp dword ptr [rdi + BCRYPT_REQ_SIZE], BCRYPT_HASH_V2_SIZE
+    jb .Lbcrypt_verify_v2_invalid
+    mov rax, qword ptr [rdi + BCRYPT_REQ_OUTPUT]
+    test rax, rax
+    jz .Lbcrypt_verify_v2_invalid
+    cmp qword ptr [rdi + BCRYPT_REQ_OUTPUT_LEN], 23
+    jb .Lbcrypt_verify_v2_invalid
+    mov r11, rdi
+    sub rsp, 112
+    mov qword ptr [rsp + 72], rax
+    mov rdi, rsp
+    mov rsi, r11
+    mov ecx, BCRYPT_HASH_V2_SIZE
+    rep movsb
+    lea rax, [rsp + 88]
+    mov qword ptr [rsp + BCRYPT_REQ_OUTPUT], rax
+    mov qword ptr [rsp + BCRYPT_REQ_OUTPUT_LEN], 23
+    mov rdi, rsp
+    call bcrypt_hash_v2
+    test eax, eax
+    jnz .Lbcrypt_verify_v2_cleanup_invalid
+    mov rsi, qword ptr [rsp + 72]
+    lea rdi, [rsp + 88]
+    xor eax, eax
+    mov rdx, qword ptr [rdi]
+    xor rdx, qword ptr [rsi]
+    or rax, rdx
+    mov rdx, qword ptr [rdi + 8]
+    xor rdx, qword ptr [rsi + 8]
+    or rax, rdx
+    mov rdx, qword ptr [rdi + 16]
+    xor rdx, qword ptr [rsi + 16]
+    movabs rcx, 0x00ffffffffffffff
+    and rdx, rcx
+    or rax, rdx
+    test rax, rax
+    sete al
+    movzx eax, al
+    mov r10d, eax
+    xor eax, eax
+    lea rdi, [rsp + 88]
+    mov ecx, 3
+    rep stosq
+    mov eax, r10d
+    add rsp, 112
+    ret
+.Lbcrypt_verify_v2_cleanup_invalid:
+    xor eax, eax
+    lea rdi, [rsp + 88]
+    mov ecx, 3
+    rep stosq
+    add rsp, 112
+    ret
+.Lbcrypt_verify_v2_invalid:
+    xor eax, eax
+    ret
+
 .global bcrypt_verify
 bcrypt_verify:
     cmp rcx, BCRYPT_SALT_LEN

@@ -123,6 +123,8 @@ unsafe extern "C" {
     #[cfg(target_arch = "x86_64")]
     pub(crate) fn bcrypt_hash_v2(r: *const crate::bcrypt::BcryptHashRequestV2) -> u64;
     #[cfg(target_arch = "x86_64")]
+    pub(crate) fn bcrypt_verify_v2(r: *const crate::bcrypt::BcryptHashRequestV2) -> u64;
+    #[cfg(target_arch = "x86_64")]
     pub(crate) fn bcrypt_encode_v2(r: *const crate::bcrypt::BcryptEncodeRequestV2) -> u64;
     #[cfg(target_arch = "x86_64")]
     pub(crate) fn bcrypt_decode_v2(r: *const crate::bcrypt::BcryptDecodeRequestV2) -> u64;

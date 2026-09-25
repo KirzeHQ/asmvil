@@ -1,5 +1,5 @@
 use crate::{
-    ffi::{bcrypt_decode, bcrypt_decode_v2, bcrypt_encode, bcrypt_encode_v2, bcrypt_generate_salt, bcrypt_hash, bcrypt_hash_v1, bcrypt_hash_v2, bcrypt_verify},
+    ffi::{bcrypt_decode, bcrypt_decode_v2, bcrypt_encode, bcrypt_encode_v2, bcrypt_generate_salt, bcrypt_hash, bcrypt_hash_v1, bcrypt_hash_v2, bcrypt_verify, bcrypt_verify_v2},
     helpers::eq,
 };
 use blowfish::Blowfish;
@@ -340,6 +340,13 @@ fn bcrypt_v2_variants_share_versioned_request_abi() {
     request_2a.output = v2a.as_mut_ptr();
     assert_eq!(unsafe { bcrypt_hash_v2(&request_2a) }, 0);
     assert_eq!(v2, v2a);
+
+    let mut verify_request = request_2a;
+    verify_request.output_len = 23;
+    assert_eq!(unsafe { bcrypt_verify_v2(&verify_request) }, 1);
+    v2a[0] ^= 1;
+    assert_eq!(unsafe { bcrypt_verify_v2(&verify_request) }, 0);
+    v2a[0] ^= 1;
 
     let mut encoded = [0u8; 61];
     let encode_2a = BcryptEncodeRequestV2 {

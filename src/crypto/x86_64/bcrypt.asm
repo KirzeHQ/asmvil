@@ -23,6 +23,7 @@
 .equ BCRYPT_REQ_SALT, 32
 .equ BCRYPT_REQ_SALT_LEN, 40
 .equ BCRYPT_REQ_COST, 48
+.equ BCRYPT_REQ_MAX_COST, 52
 .equ BCRYPT_REQ_OUTPUT, 56
 .equ BCRYPT_REQ_OUTPUT_LEN, 64
 .equ BCRYPT_MODE, 4292
@@ -325,6 +326,14 @@ bcrypt_hash_v2:
     mov rdx, qword ptr [r11 + BCRYPT_REQ_SALT]
     mov rcx, qword ptr [r11 + BCRYPT_REQ_SALT_LEN]
     mov r8d, dword ptr [r11 + BCRYPT_REQ_COST]
+    mov eax, dword ptr [r11 + BCRYPT_REQ_MAX_COST]
+    test eax, eax
+    jz 19f
+    cmp eax, BCRYPT_MAX_COST
+    ja .Lbcrypt_hash_v2_invalid
+    cmp r8d, eax
+    ja .Lbcrypt_hash_v2_invalid
+19:
     mov r9, qword ptr [r11 + BCRYPT_REQ_OUTPUT]
     cmp qword ptr [r11 + BCRYPT_REQ_OUTPUT_LEN], 23
     jb .Lbcrypt_output_invalid

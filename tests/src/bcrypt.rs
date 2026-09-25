@@ -16,7 +16,7 @@ pub(crate) struct BcryptHashRequestV2 {
     pub(crate) salt: *const u8,
     pub(crate) salt_len: usize,
     pub(crate) cost: u32,
-    pub(crate) reserved2: u32,
+    pub(crate) max_cost: u32,
     pub(crate) output: *mut u8,
     pub(crate) output_len: usize,
 }
@@ -31,7 +31,7 @@ pub(crate) struct BcryptEncodeRequestV2 {
     pub(crate) salt: *const u8,
     pub(crate) checksum: *const u8,
     pub(crate) cost: u32,
-    pub(crate) reserved2: u32,
+    pub(crate) max_cost: u32,
     pub(crate) output: *mut u8,
     pub(crate) output_len: usize,
 }
@@ -325,7 +325,7 @@ fn bcrypt_v2_variants_share_versioned_request_abi() {
         salt: salt.as_ptr(),
         salt_len: salt.len(),
         cost: 4,
-        reserved2: 0,
+        max_cost: 0,
         output: v2.as_mut_ptr(),
         output_len: v2.len(),
     };
@@ -367,7 +367,7 @@ fn bcrypt_v2_variants_share_versioned_request_abi() {
         salt: salt.as_ptr(),
         checksum: v2a.as_ptr(),
         cost: 4,
-        reserved2: 0,
+        max_cost: 0,
         output: encoded.as_mut_ptr(),
         output_len: encoded.len(),
     };
@@ -449,7 +449,7 @@ fn bcrypt_v2_2a_matches_independent_high_bit_vector() {
         salt: salt.as_ptr(),
         salt_len: salt.len(),
         cost,
-        reserved2: 0,
+        max_cost: 0,
         output: raw.as_mut_ptr(),
         output_len: raw.len(),
     };
@@ -464,7 +464,7 @@ fn bcrypt_v2_2a_matches_independent_high_bit_vector() {
         salt: salt.as_ptr(),
         checksum: raw.as_ptr(),
         cost,
-        reserved2: 0,
+        max_cost: 0,
         output: encoded.as_mut_ptr(),
         output_len: encoded.len(),
     };
@@ -503,7 +503,7 @@ fn bcrypt_v2_2a_matches_collision_safety_vector() {
         salt: salt.as_ptr(),
         salt_len: salt.len(),
         cost,
-        reserved2: 0,
+        max_cost: 0,
         output: raw.as_mut_ptr(),
         output_len: raw.len(),
     };
@@ -518,7 +518,7 @@ fn bcrypt_v2_2a_matches_collision_safety_vector() {
         salt: salt.as_ptr(),
         checksum: raw.as_ptr(),
         cost,
-        reserved2: 0,
+        max_cost: 0,
         output: encoded.as_mut_ptr(),
         output_len: encoded.len(),
     };
@@ -822,7 +822,7 @@ fn bcrypt_parser_and_request_fuzz_inputs_are_safe() {
         salt: salt.as_ptr(),
         salt_len: salt.len(),
         cost: 4,
-        reserved2: 0,
+        max_cost: 0,
         output: output.as_mut_ptr(),
         output_len: 23,
     };
@@ -841,6 +841,13 @@ fn bcrypt_parser_and_request_fuzz_inputs_are_safe() {
         request.output_len = output_len;
         let expected_status = if output_len < 23 { 4 } else { 1 };
         assert_eq!(unsafe { bcrypt_hash_v2(&request) }, expected_status);
+        assert_eq!(output, [0xa5; 24]);
+    }
+    for max_cost in [3, 32] {
+        output.fill(0xa5);
+        let mut request = base_hash;
+        request.max_cost = max_cost;
+        assert_eq!(unsafe { bcrypt_hash_v2(&request) }, 1);
         assert_eq!(output, [0xa5; 24]);
     }
 

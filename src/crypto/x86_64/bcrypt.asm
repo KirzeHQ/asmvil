@@ -87,43 +87,6 @@ bcrypt_word:
     mov eax, r8d
     ret
 
-# Read one cyclic word with the historical signed-byte behavior.
-bcrypt_word_2a:
-    xor r8d, r8d
-    movsx eax, byte ptr [rdi + rdx]
-    shl eax, 24
-    mov r8d, eax
-    inc rdx
-    cmp rdx, rsi
-    jb 5f
-    xor edx, edx
-5:
-    movsx eax, byte ptr [rdi + rdx]
-    shl eax, 16
-    or r8d, eax
-    inc rdx
-    cmp rdx, rsi
-    jb 6f
-    xor edx, edx
-6:
-    movsx eax, byte ptr [rdi + rdx]
-    shl eax, 8
-    or r8d, eax
-    inc rdx
-    cmp rdx, rsi
-    jb 7f
-    xor edx, edx
-7:
-    movsx eax, byte ptr [rdi + rdx]
-    or r8d, eax
-    inc rdx
-    cmp rdx, rsi
-    jb 8f
-    xor edx, edx
-8:
-    mov eax, r8d
-    ret
-
 .ifdef ASMVIL_TESTING
 .global bcrypt_debug_stream_word
 bcrypt_debug_stream_word:
@@ -200,13 +163,7 @@ bcrypt_expand:
     mov rdi, r14
     mov rsi, r15
     mov edx, dword ptr [rsp]
-    cmp dword ptr [rsp + 12], BCRYPT_VARIANT_2A
-    jne 9f
-    call bcrypt_word_2a
-    jmp 10f
-9:
     call bcrypt_word
-10:
     mov dword ptr [rsp], edx
     xor dword ptr [r12 + BF_P + r10 * 4], eax
     inc r10d

@@ -4,6 +4,7 @@ use crate::{
 };
 use blowfish::Blowfish;
 
+#[derive(Clone, Copy)]
 #[repr(C)]
 pub(crate) struct BcryptHashRequestV2 {
     pub(crate) version: u32,
@@ -20,6 +21,7 @@ pub(crate) struct BcryptHashRequestV2 {
     pub(crate) output_len: usize,
 }
 
+#[derive(Clone, Copy)]
 #[repr(C)]
 pub(crate) struct BcryptEncodeRequestV2 {
     pub(crate) version: u32,
@@ -34,6 +36,7 @@ pub(crate) struct BcryptEncodeRequestV2 {
     pub(crate) output_len: usize,
 }
 
+#[derive(Clone, Copy)]
 #[repr(C)]
 pub(crate) struct BcryptDecodeRequestV2 {
     pub(crate) version: u32,
@@ -719,4 +722,126 @@ fn bcrypt_initial_expand_matches_rust_blowfish_state() {
     ) };
     assert_eq!(p, raw.p);
     assert_eq!(s, raw.s[0][..16]);
+}
+
+#[test]
+fn bcrypt_parser_and_request_fuzz_inputs_are_safe() {
+    let mut state = 0x6d5a_56a9u32;
+    let mut valid_hash = [0u8; 60];
+    valid_hash.copy_from_slice(
+        b"$2b$04$0123456789abcdef......H7gfdCA4aaQ3ZJeJCmE1yyY4B0GGGlC",
+    );
+
+    for _ in 0..4096 {
+        let mut input = [0u8; 60];
+        for byte in &mut input {
+            state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            *byte = (state >> 24) as u8;
+        }
+        let mut salt = [0xa5u8; 16];
+        let mut cost = 0xa5a5_a5a5;
+        let mut checksum = [0xa5u8; 23];
+        let mut variant = 0xa5a5_a5a5;
+        let request = BcryptDecodeRequestV2 {
+            version: 2,
+            size: 56,
+            hash: input.as_ptr(),
+            hash_len: 60,
+            salt: salt.as_mut_ptr(),
+            cost: &mut cost,
+            checksum: checksum.as_mut_ptr(),
+            variant: &mut variant,
+        };
+        let status = unsafe { bcrypt_decode_v2(&request) };
+        assert!(status == 0 || status == 1);
+        if status == 1 {
+            assert_eq!(salt, [0xa5; 16]);
+            assert_eq!(cost, 0xa5a5_a5a5);
+            assert_eq!(checksum, [0xa5; 23]);
+            assert_eq!(variant, 0xa5a5_a5a5);
+        }
+
+        let mut salt_v1 = [0xa5u8; 16];
+        let mut cost_v1 = 0xa5a5_a5a5;
+        let mut checksum_v1 = [0xa5u8; 23];
+        let status = unsafe {
+            bcrypt_decode(
+                input.as_ptr(),
+                60,
+                salt_v1.as_mut_ptr(),
+                &mut cost_v1,
+                checksum_v1.as_mut_ptr(),
+            )
+        };
+        assert!(status == 0 || status == 1);
+        if status == 1 {
+            assert_eq!(salt_v1, [0xa5; 16]);
+            assert_eq!(cost_v1, 0xa5a5_a5a5);
+            assert_eq!(checksum_v1, [0xa5; 23]);
+        }
+    }
+
+    let password = b"password";
+    let salt = [0u8; 16];
+    let mut output = [0xa5u8; 24];
+    let base_hash = BcryptHashRequestV2 {
+        version: 2,
+        size: 72,
+        variant: 2,
+        reserved: 0,
+        password: password.as_ptr(),
+        password_len: password.len(),
+        salt: salt.as_ptr(),
+        salt_len: salt.len(),
+        cost: 4,
+        reserved2: 0,
+        output: output.as_mut_ptr(),
+        output_len: 23,
+    };
+    for (version, size, variant, output_len) in [
+        (1, 72, 2, 23),
+        (2, 71, 2, 23),
+        (2, 72, 0, 23),
+        (2, 72, 4, 23),
+        (2, 72, 2, 22),
+    ] {
+        output.fill(0xa5);
+        let mut request = base_hash;
+        request.version = version;
+        request.size = size;
+        request.variant = variant;
+        request.output_len = output_len;
+        let expected_status = if output_len < 23 { 4 } else { 1 };
+        assert_eq!(unsafe { bcrypt_hash_v2(&request) }, expected_status);
+        assert_eq!(output, [0xa5; 24]);
+    }
+
+    let mut decoded_salt = [0xa5u8; 16];
+    let mut decoded_cost = 0xa5a5_a5a5;
+    let mut decoded_checksum = [0xa5u8; 23];
+    let mut decoded_variant = 0xa5a5_a5a5;
+    let base_decode = BcryptDecodeRequestV2 {
+        version: 2,
+        size: 56,
+        hash: valid_hash.as_ptr(),
+        hash_len: 60,
+        salt: decoded_salt.as_mut_ptr(),
+        cost: &mut decoded_cost,
+        checksum: decoded_checksum.as_mut_ptr(),
+        variant: &mut decoded_variant,
+    };
+    for (version, size) in [(1, 56), (2, 55)] {
+        decoded_salt.fill(0xa5);
+        decoded_cost = 0xa5a5_a5a5;
+        decoded_checksum.fill(0xa5);
+        decoded_variant = 0xa5a5_a5a5;
+        let mut request = base_decode;
+        request.version = version;
+        request.size = size;
+        assert_eq!(unsafe { bcrypt_decode_v2(&request) }, 1);
+        assert_eq!(decoded_salt, [0xa5; 16]);
+        assert_eq!(decoded_cost, 0xa5a5_a5a5);
+        assert_eq!(decoded_checksum, [0xa5; 23]);
+        assert_eq!(decoded_variant, 0xa5a5_a5a5);
+    }
 }

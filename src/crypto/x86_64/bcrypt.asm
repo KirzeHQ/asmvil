@@ -87,6 +87,55 @@ bcrypt_word:
     mov eax, r8d
     ret
 
+bcrypt_word_2a:
+    xor r8d, r8d
+    xor r9d, r9d
+    movsx eax, byte ptr [rdi + rdx]
+    shl eax, 24
+    mov r8d, eax
+    inc rdx
+    cmp rdx, rsi
+    jb 5f
+    xor edx, edx
+5:
+    movsx eax, byte ptr [rdi + rdx]
+    test eax, 0x80
+    jz 6f
+    or r9d, 0x80
+6:
+    shl eax, 16
+    or r8d, eax
+    inc rdx
+    cmp rdx, rsi
+    jb 7f
+    xor edx, edx
+7:
+    movsx eax, byte ptr [rdi + rdx]
+    test eax, 0x80
+    jz 8f
+    or r9d, 0x80
+8:
+    shl eax, 8
+    or r8d, eax
+    inc rdx
+    cmp rdx, rsi
+    jb 9f
+    xor edx, edx
+9:
+    movsx eax, byte ptr [rdi + rdx]
+    test eax, 0x80
+    jz 10f
+    or r9d, 0x80
+10:
+    or r8d, eax
+    inc rdx
+    cmp rdx, rsi
+    jb 11f
+    xor edx, edx
+11:
+    mov eax, r8d
+    ret
+
 .ifdef ASMVIL_TESTING
 .global bcrypt_debug_stream_word
 bcrypt_debug_stream_word:
@@ -149,7 +198,7 @@ bcrypt_expand:
     push r13
     push r14
     push r15
-    sub rsp, 16
+    sub rsp, 32
     mov r12, rdi
     mov r13, rsi
     mov r14, rdx
@@ -170,6 +219,47 @@ bcrypt_expand:
     cmp r10d, 18
     jb 1b
 
+    cmp dword ptr [rsp + 12], BCRYPT_VARIANT_2A
+    jne 18f
+    mov dword ptr [rsp + 16], 0
+    mov dword ptr [rsp + 20], 0
+    mov dword ptr [rsp + 24], 0
+    xor r10d, r10d
+12:
+    cmp r10d, 18
+    jae 16f
+    mov rdi, r14
+    mov rsi, r15
+    mov edx, dword ptr [rsp + 24]
+    mov dword ptr [rsp + 28], edx
+    call bcrypt_word
+    mov dword ptr [rsp + 24], edx
+    mov ebx, eax
+    mov rdi, r14
+    mov rsi, r15
+    mov edx, dword ptr [rsp + 28]
+    call bcrypt_word_2a
+    xor ebx, eax
+    or dword ptr [rsp + 16], ebx
+    or dword ptr [rsp + 20], r9d
+    inc r10d
+    jmp 12b
+16:
+    mov eax, dword ptr [rsp + 16]
+    shr eax, 16
+    or eax, dword ptr [rsp + 16]
+    and eax, 0xffff
+    add eax, 0xffff
+    mov ecx, dword ptr [rsp + 20]
+    shl ecx, 9
+    and ecx, 0x10000
+    not eax
+    and ecx, eax
+    test ecx, ecx
+    jz 17f
+    xor dword ptr [r12 + BF_P], 0x10000
+17:
+18:
     xor ebx, ebx
     xor ecx, ecx
     xor r10d, r10d
@@ -200,7 +290,7 @@ bcrypt_expand:
     cmp r10d, 1042
     jb 2b
 
-    add rsp, 16
+    add rsp, 32
     pop r15
     pop r14
     pop r13
@@ -314,13 +404,13 @@ bcrypt_hash_v2:
     lea rsi, [rbp + BCRYPT_SALT]
     mov rdx, qword ptr [rbp + BCRYPT_KEY_PTR]
     mov ecx, dword ptr [rbp + BCRYPT_KEY_LEN]
-    mov r8d, dword ptr [rbp + BCRYPT_MODE]
+    xor r8d, r8d
     call bcrypt_expand
     mov rdi, rbp
     lea rsi, [rbp + BCRYPT_SALT]
     mov rdx, r13
     mov ecx, BCRYPT_SALT_LEN
-    mov r8d, dword ptr [rbp + BCRYPT_MODE]
+    xor r8d, r8d
     call bcrypt_expand
     dec dword ptr [rbp + BCRYPT_ROUNDS]
     jnz 1b

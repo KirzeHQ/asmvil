@@ -424,6 +424,60 @@ fn bcrypt_v2_2a_matches_independent_high_bit_vector() {
 }
 
 #[test]
+fn bcrypt_v2_2a_matches_collision_safety_vector() {
+    let password = [0xff, 0xa3, b'3', b'4', 0xff, 0xff, 0xff, 0xa3, b'3', b'4', b'5'];
+    let external = b"$2a$04$abcdefghijklmnopqrstuuE8Lpo1/qkGPTBDBxEsJjeEzh9nkZ9uW";
+    let mut salt = [0u8; 16];
+    let mut cost = 0;
+    let mut variant = 0;
+    let mut expected = [0u8; 23];
+    let decode = BcryptDecodeRequestV2 {
+        version: 2,
+        size: 56,
+        hash: external.as_ptr(),
+        hash_len: 60,
+        salt: salt.as_mut_ptr(),
+        cost: &mut cost,
+        checksum: expected.as_mut_ptr(),
+        variant: &mut variant,
+    };
+    assert_eq!(unsafe { bcrypt_decode_v2(&decode) }, 0);
+
+    let mut raw = [0u8; 24];
+    let hash = BcryptHashRequestV2 {
+        version: 2,
+        size: 72,
+        variant,
+        reserved: 0,
+        password: password.as_ptr(),
+        password_len: password.len(),
+        salt: salt.as_ptr(),
+        salt_len: salt.len(),
+        cost,
+        reserved2: 0,
+        output: raw.as_mut_ptr(),
+        output_len: raw.len(),
+    };
+    assert_eq!(unsafe { bcrypt_hash_v2(&hash) }, 0);
+
+    let mut encoded = [0u8; 61];
+    let encode = BcryptEncodeRequestV2 {
+        version: 2,
+        size: 56,
+        variant,
+        reserved: 0,
+        salt: salt.as_ptr(),
+        checksum: raw.as_ptr(),
+        cost,
+        reserved2: 0,
+        output: encoded.as_mut_ptr(),
+        output_len: encoded.len(),
+    };
+    assert_eq!(unsafe { bcrypt_encode_v2(&encode) }, 0);
+    assert_eq!(&encoded[..60], external);
+}
+
+#[test]
 fn bcrypt_external_compatibility_vectors() {
     for (password, salt_input, cost) in [
         (

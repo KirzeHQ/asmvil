@@ -61,6 +61,14 @@ clean:
 test:
     cargo test --manifest-path tests/Cargo.toml
 
+fuzz: fuzz-bcrypt
+
+fuzz-bcrypt:
+    rustup run nightly cargo fuzz run bcrypt-parser
+
+fuzz-bcrypt-time seconds="60":
+    rustup run nightly cargo fuzz run bcrypt-parser -- -max_total_time={{seconds}}
+
 fmt:
     #!/usr/bin/env bash
     set -euo pipefail

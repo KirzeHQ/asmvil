@@ -1,0 +1,19 @@
+[package]
+name = "asmvil-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+build = "build.rs"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[[bin]]
+name = "bcrypt-parser"
+path = "fuzz_targets/bcrypt_parser.rs"
+test = false
+doc = false
+bench = false

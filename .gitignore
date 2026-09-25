@@ -1,6 +1,8 @@
 # Build artifacts
 build/
 target/
+artifacts/
+corpus/
 
 # temporarily uncommitted files
 docs/

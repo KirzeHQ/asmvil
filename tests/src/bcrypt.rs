@@ -845,3 +845,69 @@ fn bcrypt_parser_and_request_fuzz_inputs_are_safe() {
         assert_eq!(decoded_variant, 0xa5a5_a5a5);
     }
 }
+
+#[test]
+fn bcrypt_fixed_buffers_support_documented_overlap() {
+    let password = b"password";
+    let salt = [
+        0xdb, 0x7e, 0x39, 0xeb, 0xbf, 0x3d, 0xfb, 0xf7,
+        0x1d, 0x79, 0xf8, 0x21, 0, 0, 0, 0,
+    ];
+    let mut expected_checksum = [0u8; 24];
+    assert_eq!(unsafe {
+        bcrypt_hash(
+            password.as_ptr(), password.len(), salt.as_ptr(), salt.len(), 4,
+            expected_checksum.as_mut_ptr(),
+        )
+    }, 0);
+
+    let mut hash_storage = [0u8; 64];
+    hash_storage[..password.len()].copy_from_slice(password);
+    hash_storage[16..32].copy_from_slice(&salt);
+    assert_eq!(unsafe {
+        bcrypt_hash(
+            hash_storage.as_ptr(), password.len(), hash_storage.as_ptr().add(16), 16, 4,
+            hash_storage.as_mut_ptr().add(8),
+        )
+    }, 0);
+    assert_eq!(&hash_storage[8..31], &expected_checksum[..23]);
+
+    let mut expected_encoded = [0u8; 61];
+    assert_eq!(unsafe {
+        bcrypt_encode(
+            salt.as_ptr(), expected_checksum.as_ptr(), 4, expected_encoded.as_mut_ptr(),
+        )
+    }, 0);
+    let mut encode_storage = [0u8; 80];
+    encode_storage[..16].copy_from_slice(&salt);
+    encode_storage[16..39].copy_from_slice(&expected_checksum[..23]);
+    assert_eq!(unsafe {
+        bcrypt_encode(
+            encode_storage.as_ptr(),
+            encode_storage.as_ptr().add(16),
+            4,
+            encode_storage.as_mut_ptr().add(8),
+        )
+    }, 0);
+    assert_eq!(&encode_storage[8..69], &expected_encoded);
+
+    let mut decode_storage = [0u8; 80];
+    decode_storage[..60].copy_from_slice(&expected_encoded[..60]);
+    let mut decoded_cost = 0;
+    let mut decoded_salt = [0u8; 16];
+    let mut decoded_checksum = [0u8; 23];
+    assert_eq!(unsafe {
+        bcrypt_decode(
+            decode_storage.as_ptr(),
+            60,
+            decode_storage.as_mut_ptr().add(8),
+            &mut decoded_cost,
+            decode_storage.as_mut_ptr().add(30),
+        )
+    }, 0);
+    decoded_salt.copy_from_slice(&decode_storage[8..24]);
+    decoded_checksum.copy_from_slice(&decode_storage[30..53]);
+    assert_eq!(decoded_salt, salt);
+    assert_eq!(decoded_cost, 4);
+    assert_eq!(decoded_checksum, expected_checksum[..23]);
+}

@@ -999,10 +999,21 @@ bcrypt_encode_v2:
     push r12
     push r13
     push r14
+    sub rsp, 40
     mov rbx, rdi
     mov r12, rsi
     mov r13, rcx
     mov r14d, edx
+    mov rdi, rsp
+    mov rsi, rbx
+    mov ecx, 16
+    rep movsb
+    lea rdi, [rsp + 16]
+    mov rsi, r12
+    mov ecx, 23
+    rep movsb
+    mov rbx, rsp
+    lea r12, [rsp + 16]
     mov dword ptr [r13], 0x24623224
     cmp r10d, BCRYPT_VARIANT_2B
     je 11f
@@ -1038,6 +1049,7 @@ bcrypt_encode_v2:
     call bcrypt_b64_encode
     mov byte ptr [r13 + 60], 0
     xor eax, eax
+    add rsp, 40
     pop r14
     pop r13
     pop r12

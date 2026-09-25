@@ -344,6 +344,13 @@ fn bcrypt_v2_variants_share_versioned_request_abi() {
     assert_eq!(unsafe { bcrypt_hash_v2(&request_2a) }, 0);
     assert_eq!(v2, v2a);
 
+    let mut unsupported_hash_request = request_2a;
+    unsupported_hash_request.variant = 4;
+    let mut unsupported_hash_output = [0xa5u8; 24];
+    unsupported_hash_request.output = unsupported_hash_output.as_mut_ptr();
+    assert_eq!(unsafe { bcrypt_hash_v2(&unsupported_hash_request) }, 1);
+    assert_eq!(unsupported_hash_output, [0xa5; 24]);
+
     let mut verify_request = request_2a;
     verify_request.output_len = 23;
     assert_eq!(unsafe { bcrypt_verify_v2(&verify_request) }, 1);
@@ -367,6 +374,13 @@ fn bcrypt_v2_variants_share_versioned_request_abi() {
     assert_eq!(unsafe { bcrypt_encode_v2(&encode_2a) }, 0);
     assert_eq!(&encoded[..4], b"$2a$");
 
+    let mut unsupported_encode = encode_2a;
+    unsupported_encode.variant = 4;
+    let mut unsupported_output = [0xa5u8; 61];
+    unsupported_encode.output = unsupported_output.as_mut_ptr();
+    assert_eq!(unsafe { bcrypt_encode_v2(&unsupported_encode) }, 1);
+    assert_eq!(unsupported_output, [0xa5; 61]);
+
     let mut decoded_salt = [0u8; 16];
     let mut decoded_cost = 0;
     let mut decoded_variant = 0;
@@ -386,6 +400,20 @@ fn bcrypt_v2_variants_share_versioned_request_abi() {
     assert_eq!(decoded_cost, 4);
     assert_eq!(decoded_variant, 1);
     assert_eq!(&decoded_checksum, &v2a[..23]);
+
+    let mut unsupported_hash = encoded;
+    unsupported_hash[2] = b'x';
+    let mut unsupported_decode = decode_2a;
+    unsupported_decode.hash = unsupported_hash.as_ptr();
+    decoded_salt.fill(0xa5);
+    decoded_cost = 0xa5a5_a5a5;
+    decoded_checksum.fill(0xa5);
+    decoded_variant = 0xa5a5_a5a5;
+    assert_eq!(unsafe { bcrypt_decode_v2(&unsupported_decode) }, 1);
+    assert_eq!(decoded_salt, [0xa5; 16]);
+    assert_eq!(decoded_cost, 0xa5a5_a5a5);
+    assert_eq!(decoded_checksum, [0xa5; 23]);
+    assert_eq!(decoded_variant, 0xa5a5_a5a5);
 }
 
 #[test]

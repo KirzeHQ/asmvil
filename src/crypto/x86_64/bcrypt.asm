@@ -13,6 +13,7 @@
 .equ BCRYPT_VARIANT_2A, 1
 .equ BCRYPT_VARIANT_2B, 2
 .equ BCRYPT_VARIANT_2Y, 3
+.equ BCRYPT_VARIANT_2X, 4
 .equ BCRYPT_HASH_V2_SIZE, 72
 .equ BCRYPT_REQ_VERSION, 0
 .equ BCRYPT_REQ_SIZE, 4
@@ -313,6 +314,8 @@ bcrypt_hash_v2:
     jb .Lbcrypt_hash_v2_invalid
     mov r11, rdi
     mov r10d, dword ptr [r11 + BCRYPT_REQ_VARIANT]
+    cmp r10d, BCRYPT_VARIANT_2X
+    je .Lbcrypt_hash_v2_invalid
     cmp r10d, BCRYPT_VARIANT_2A
     jb .Lbcrypt_hash_v2_invalid
     cmp r10d, BCRYPT_VARIANT_2Y
@@ -973,6 +976,8 @@ bcrypt_encode_v2:
     jb .Lbcrypt_encode_invalid
     mov r11, rdi
     mov r10d, dword ptr [r11 + 8]
+    cmp r10d, BCRYPT_VARIANT_2X
+    je .Lbcrypt_encode_invalid
     cmp r10d, BCRYPT_VARIANT_2A
     jb .Lbcrypt_encode_invalid
     cmp r10d, BCRYPT_VARIANT_2Y

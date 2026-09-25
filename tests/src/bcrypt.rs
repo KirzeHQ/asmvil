@@ -89,6 +89,17 @@ fn bcrypt_known_vector() {
             output.as_ptr(),
         )
     }, 1);
+    output[23] = 1;
+    assert_eq!(unsafe {
+        bcrypt_verify(
+            password.as_ptr(),
+            password.len(),
+            salt.as_ptr(),
+            salt.len(),
+            4,
+            output.as_ptr(),
+        )
+    }, 1);
     output[0] ^= 1;
     assert_eq!(unsafe {
         bcrypt_verify(

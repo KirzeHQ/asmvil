@@ -323,7 +323,7 @@ bcrypt_hash_v2:
     mov rcx, qword ptr [r11 + BCRYPT_REQ_SALT_LEN]
     mov r8d, dword ptr [r11 + BCRYPT_REQ_COST]
     mov r9, qword ptr [r11 + BCRYPT_REQ_OUTPUT]
-    cmp qword ptr [r11 + BCRYPT_REQ_OUTPUT_LEN], 24
+    cmp qword ptr [r11 + BCRYPT_REQ_OUTPUT_LEN], 23
     jb .Lbcrypt_output_invalid
     jmp .Lbcrypt_hash_core
 
@@ -461,8 +461,8 @@ bcrypt_hash_v2:
 
     lea rsi, [rbp + BF_STATE]
     mov rdi, r15
-    mov ecx, 6
-    rep movsd
+    mov ecx, 23
+    rep movsb
     xor eax, eax
     mov ecx, BCRYPT_STACK / 8
     mov rdi, rbp
@@ -617,6 +617,8 @@ bcrypt_verify:
     or rax, rdx
     mov rdx, qword ptr [rdi + 16]
     xor rdx, qword ptr [rsi + 16]
+    movabs rcx, 0x00ffffffffffffff
+    and rdx, rcx
     or rax, rdx
     test rax, rax
     sete al
